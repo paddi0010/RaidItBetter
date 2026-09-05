@@ -3,7 +3,7 @@ import webbrowser
 from tkinter import messagebox
 
 GITHUB_REPO = "paddi0010/RaidItBetter"
-CURRENT_VERSION = "0.2.0 alpha"
+CURRENT_VERSION = "0.2.1 alpha"
 
 def check_update_status():
     url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
