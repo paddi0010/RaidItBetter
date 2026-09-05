@@ -7,15 +7,14 @@ def get_base_path():
         return sys._MEIPASS
     return os.path.dirname(os.path.abspath(__file__))
 
-def get_config_dir():
-    appdata = os.getenv('APPDATA')
-    if appdata:
-        path = os.path.join(appdata, "RaidItBetter")
-        os.makedirs(path, exist_ok=True)
-        return path
-    return get_base_path()
+def get_desktop_folder_path():
+    """Erstellt den RaidItBetter-Ordner auf dem Desktop automatisch, falls er nicht existiert."""
+    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+    app_folder = os.path.join(desktop, "RaidItBetter")
+    os.makedirs(app_folder, exist_ok=True)
+    return app_folder
 
-CONFIG_FILE = os.path.join(get_config_dir(), "settings.json")
+CONFIG_FILE = os.path.join(get_desktop_folder_path(), "settings.json")
 
 def load_language():
     if os.path.exists(CONFIG_FILE):

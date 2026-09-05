@@ -75,7 +75,6 @@ class TwitchRaidApp(ctk.CTk):
         )
         self.btn_lang.pack(side="right", padx=(5, 0))
 
-        # Update-Button links neben der Flagge
         self.btn_update = ctk.CTkButton(
             self.header_frame, text="🔄", width=32, height=32, 
             fg_color=BTN_GRAY, hover_color=("gray75", "gray35"), 
@@ -91,7 +90,6 @@ class TwitchRaidApp(ctk.CTk):
         self.btn_login = ctk.CTkButton(self, text=login_text, fg_color=login_color, hover_color=login_hover, width=460, height=35, command=self.handle_auth_click)
         self.btn_login.pack(pady=5)
 
-        # Eingabe & Speichern
         self.input_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.input_frame.pack(pady=5, fill="x", padx=20)
 
@@ -101,7 +99,6 @@ class TwitchRaidApp(ctk.CTk):
         self.btn_add_fav = ctk.CTkButton(self.input_frame, text=self.t.get("save_fav"), fg_color="#333333", hover_color="#444444", width=115, height=35, command=self.add_favorite)
         self.btn_add_fav.pack(side="right")
 
-        # Favoriten-Liste (Scrollable Frame)
         self.favorites_frame = ctk.CTkScrollableFrame(self, width=460, height=290, fg_color=("gray92", "gray17"))
         self.favorites_frame.pack(pady=10, padx=20)
 
@@ -113,37 +110,20 @@ class TwitchRaidApp(ctk.CTk):
         self.label_status = ctk.CTkLabel(self, text=self.t.get("ready"), text_color="gray", font=ctk.CTkFont(size=12))
         self.label_status.pack(pady=(0, 10))
 
-        # Liste beim Start laden
         self.refresh_favorites_list()
-
-        # Im Hintergrund nach Updates suchen
         threading.Thread(target=self.check_app_updates_background, daemon=True).start()
 
     def check_app_updates_background(self):
         import time
         while True:
             has_update, self.latest_release_url = check_update_status()
-            
-            if has_update:
-                color = BTN_ORANGE
-            elif self.latest_release_url:
-                color = BTN_GREEN
-            else:
-                color = BTN_GRAY
-                
+            color = BTN_ORANGE if has_update else (BTN_GREEN if self.latest_release_url else BTN_GRAY)
             self.after(0, lambda c=color: self.btn_update.configure(fg_color=c))
             time.sleep(1800)
 
     def on_update_click(self):
         has_update, self.latest_release_url = check_update_status()
-        
-        if has_update:
-            color = BTN_ORANGE
-        elif self.latest_release_url:
-            color = BTN_GREEN
-        else:
-            color = BTN_GRAY
-            
+        color = BTN_ORANGE if has_update else (BTN_GREEN if self.latest_release_url else BTN_GRAY)
         self.btn_update.configure(fg_color=color)
         check_for_updates(parent_window=self, silent=False)
         
@@ -155,7 +135,6 @@ class TwitchRaidApp(ctk.CTk):
         self.refresh_favorites_list()
 
     def toggle_language(self):
-        # Wechselt direkt zwischen "de" und "en" hin und her
         new_lang = "en" if self.lang == "de" else "de"
         self.change_language(new_lang)
 
@@ -170,7 +149,6 @@ class TwitchRaidApp(ctk.CTk):
         self.btn_raid.configure(text=self.t.get("start_raid"))
         self.label_status.configure(text=self.t.get("ready"))
         
-        # Hier ebenfalls das neue Format übernehmen:
         lang_text = "🇩🇪 DE" if self.lang == "de" else "🇬🇧 EN"
         self.btn_lang.configure(text=lang_text)
 
@@ -212,12 +190,18 @@ class TwitchRaidApp(ctk.CTk):
             info_frame.pack(side="left", fill="both", expand=True, pady=8, padx=5)
             info_frame.bind("<Button-1>", lambda e, name=data["name"]: self.select_streamer(name))
 
-            name_text = f"{data['name']} ({'Online' if data['is_online'] else 'Offline'})"
+            status_text = self.t.get("online") if data["is_online"] else self.t.get("offline")
+            name_text = f"{data['name']} ({status_text})"
             lbl_name = ctk.CTkLabel(info_frame, text=name_text, font=ctk.CTkFont(size=12, weight="bold"), anchor="w")
             lbl_name.pack(fill="x")
             lbl_name.bind("<Button-1>", lambda e, name=data["name"]: self.select_streamer(name))
 
-            details = data['game_name'] if data['is_online'] else f"Letzter Raid: {data['last_raided'] or 'Nie'}"
+            if data["is_online"]:
+                details = data['game_name']
+            else:
+                last_time = data['last_raided'] if data['last_raided'] else self.t.get("never")
+                details = self.t.get("last_raided", "Letzter Raid: {date}").format(date=last_time)
+
             lbl_details = ctk.CTkLabel(info_frame, text=details, font=ctk.CTkFont(size=10), text_color="gray", anchor="w")
             lbl_details.pack(fill="x")
             lbl_details.bind("<Button-1>", lambda e, name=data["name"]: self.select_streamer(name))
@@ -251,44 +235,6 @@ class TwitchRaidApp(ctk.CTk):
         msg = self.t.get("fav_removed", "Favorit {name} entfernt").format(name=name)
         self.label_status.configure(text=msg, text_color="blue")
 
-    def _render_favorites_ui(self, streamer_data):
-        for widget in self.favorites_frame.winfo_children():
-            widget.destroy()
-
-        for data in streamer_data:
-            card = ctk.CTkFrame(self.favorites_frame, fg_color=("white", "gray22"), corner_radius=6)
-            card.pack(pady=4, fill="x", padx=5)
-
-            card.bind("<Button-1>", lambda e, name=data["name"]: self.select_streamer(name))
-
-            dot_color = "green" if data["is_online"] else "gray"
-            lbl_dot = ctk.CTkLabel(card, text="●", text_color=dot_color, font=ctk.CTkFont(size=14))
-            lbl_dot.pack(side="left", padx=(10, 6))
-            lbl_dot.bind("<Button-1>", lambda e, name=data["name"]: self.select_streamer(name))
-
-            info_frame = ctk.CTkFrame(card, fg_color="transparent")
-            info_frame.pack(side="left", fill="both", expand=True, pady=8, padx=5)
-            info_frame.bind("<Button-1>", lambda e, name=data["name"]: self.select_streamer(name))
-
-            status_text = self.t.get("online") if data["is_online"] else self.t.get("offline")
-            name_text = f"{data['name']} ({status_text})"
-            lbl_name = ctk.CTkLabel(info_frame, text=name_text, font=ctk.CTkFont(size=12, weight="bold"), anchor="w")
-            lbl_name.pack(fill="x")
-            lbl_name.bind("<Button-1>", lambda e, name=data["name"]: self.select_streamer(name))
-
-            if data["is_online"]:
-                details = data['game_name']
-            else:
-                last_time = data['last_raided'] if data['last_raided'] else self.t.get("never")
-                details = self.t.get("last_raided", "Letzter Raid: {date}").format(date=last_time)
-
-            lbl_details = ctk.CTkLabel(info_frame, text=details, font=ctk.CTkFont(size=10), text_color="gray", anchor="w")
-            lbl_details.pack(fill="x")
-            lbl_details.bind("<Button-1>", lambda e, name=data["name"]: self.select_streamer(name))
-
-            btn_del = ctk.CTkButton(card, text="✕", width=25, height=25, fg_color="transparent", hover_color="#d9534f", text_color="gray", command=lambda n=data["name"]: self.remove_favorite(n))
-            btn_del.pack(side="right", padx=8)
-
     def handle_auth_click(self):
         if self.twitch.access_token:
             self.twitch.logout()
@@ -299,7 +245,7 @@ class TwitchRaidApp(ctk.CTk):
             color = "blue" if success else "red"
             self.label_status.configure(text=message, text_color=color)
 
-    def on_login_success(self):
+    def on_login_success(self, event=None):
         self.after(0, lambda: self.btn_login.configure(text=self.t.get("logout"), fg_color="#d9534f", hover_color="#c9302c"))
         self.after(0, lambda: self.label_status.configure(text=self.t.get("login_success"), text_color="green"))
         self.refresh_favorites_list()

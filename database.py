@@ -1,13 +1,23 @@
+import os
 import sqlite3
+from settings import get_desktop_folder_path
 
-DB_FILE = "favorites.db"
+def get_db_path():
+    folder = get_desktop_folder_path()
+    return os.path.join(folder, "favorites.db")
+
+DB_FILE = get_db_path()
+
+def get_connection():
+    return sqlite3.connect(DB_FILE)
 
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS favorites (
-            username TEXT PRIMARY KEY
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL
         )
     """)
     conn.commit()
@@ -15,30 +25,30 @@ def init_db():
 
 def get_favorites_db():
     init_db()
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT username FROM favorites")
+    cursor.execute("SELECT name FROM favorites")
     rows = cursor.fetchall()
     conn.close()
     return [row[0] for row in rows]
 
-def add_favorite_db(username):
+def add_favorite_db(name):
     init_db()
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO favorites (username) VALUES (?)", (username,))
+        cursor.execute("INSERT INTO favorites (name) VALUES (?)", (name,))
         conn.commit()
-        success = True
+        return True
     except sqlite3.IntegrityError:
-        success = False
-    conn.close()
-    return success
+        return False
+    finally:
+        conn.close()
 
-def remove_favorite_db(username):
+def remove_favorite_db(name):
     init_db()
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM favorites WHERE username = ?", (username,))
+    cursor.execute("DELETE FROM favorites WHERE name = ?", (name,))
     conn.commit()
     conn.close()
