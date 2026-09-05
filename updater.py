@@ -13,13 +13,9 @@ def check_update_status():
             data = response.json()
             latest_version = data.get("tag_name", "").strip()
             release_url = data.get("html_url")
-            
-            # Normalisieren: Alles in Kleinbuchstaben, 'v' am Anfang entfernen, Bindestriche/Leerzeichen entfernen
             clean_latest = latest_version.lower().lstrip('v').replace('-', '').replace(' ', '')
             clean_current = CURRENT_VERSION.lower().lstrip('v').replace('-', '').replace(' ', '')
             
-            # Zum Testen kannst du die Zeile hier auskommentieren (Print schauen in der Konsole)
-            # print(f"Vergleich: GitHub='{clean_latest}' vs Lokal='{clean_current}'")
             
             if clean_latest and clean_latest != clean_current:
                 return True, release_url
