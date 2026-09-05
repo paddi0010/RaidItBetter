@@ -38,7 +38,7 @@ class TwitchRaidApp(ctk.CTk):
         self.t = load_translations(lang)
         self.twitch = TwitchClient()
 
-        self.title("RaidItBetter - v0.2.0-alpha")
+        self.title("RaidItBetter - v0.2.1-alpha")
         self.geometry("520x620")
         self.resizable(False, False)
 
