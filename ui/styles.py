@@ -1,0 +1,10 @@
+BTN_GREEN = "#27ae60"
+BTN_ORANGE = "#e67e22"
+BTN_GRAY = "gray"
+
+COLOR_BG = "#2b2b2b"
+COLOR_FG = "#ffffff"
+
+FONT_FAMILY = "Arial"
+FONT_MAIN = (FONT_FAMILY, 12)
+FONT_TITLE = (FONT_FAMILY, 16, "bold")

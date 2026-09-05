@@ -3,6 +3,7 @@ __pycache__/
 *$py.class
 
 settings.json
+config.py
 favorites.db
 .env
 
