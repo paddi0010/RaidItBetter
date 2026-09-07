@@ -2,9 +2,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+.vscode/
+.idea/
 settings.json
 config.py
-favorites.db
+*.db
 .env
 
 .DS_Store

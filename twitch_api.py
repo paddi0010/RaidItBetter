@@ -61,6 +61,7 @@ class TwitchClient:
         self.access_token = None
         self.code_verifier = None
         self.current_state = None
+        self.load_token()
 
     def load_token(self):
         try:

@@ -99,6 +99,8 @@ class TwitchRaidApp(ctk.CTk):
         self.entry_streamer = ctk.CTkEntry(self.input_frame, placeholder_text=self.t.get("placeholder"), width=335, height=35)
         self.entry_streamer.pack(side="left")
         
+        self.select_streamer_name = None
+        
         # --- Autocomplete -- #
         
         self.entry_streamer.bind("<KeyRelease>", self.on_streamer_type)
@@ -109,6 +111,9 @@ class TwitchRaidApp(ctk.CTk):
             bg="#2b2b2b",
             fg="white",
             selectbackground="#1f6aa5",
+            selectforeground="white",
+            activestyle="none",
+            exportselection=False,
             bd=0,
             highlightthickness=0,
             font=("Arial", 11)
@@ -182,15 +187,12 @@ class TwitchRaidApp(ctk.CTk):
     def refresh_favorites_list(self):
         self.load_token += 1
         current_token = self.load_token
-
-        for widget in self.favorites_frame.winfo_children():
-            try:
-                widget.destroy()
-            except Exception:
-                pass
-
+        
         favorites = get_favorites_db()
         if not favorites:
+            for widget in self.favorites_frame.winfo_children():
+                try: widget.destroy() 
+                except Exception: pass
             lbl = ctk.CTkLabel(self.favorites_frame, text=self.t.get("select_fav", "No favourites saved"), text_color="gray")
             lbl.pack(pady=20)
             return
@@ -213,6 +215,8 @@ class TwitchRaidApp(ctk.CTk):
             print(f"Render error: {e}")
 
     def _render_favorites_ui(self, streamer_data):
+        self.last_streamer_data = streamer_data
+        
         for widget in self.favorites_frame.winfo_children():
             try:
                 widget.destroy()
@@ -220,7 +224,19 @@ class TwitchRaidApp(ctk.CTk):
                 pass
 
         for data in streamer_data:
-            card = ctk.CTkFrame(self.favorites_frame, fg_color=("white", "gray22"), corner_radius=6)
+            print(f"DEBUG Streamer: {data['name']} -> Online: {data['is_online']}, Game: {data.get('game_name')}")
+            is_selected = (data["name"].lower() == str(self.select_streamer_name).lower())
+            
+            border_width = 2 if is_selected else 0
+            border_color = "#1f6aa5" if is_selected else None
+            
+            card = ctk.CTkFrame(
+                self.favorites_frame, 
+                fg_color=("white", "gray22"), 
+                corner_radius=6,
+                border_width=border_width,
+                border_color=border_color
+            )
             card.pack(pady=4, fill="x", padx=5)
 
             card.bind("<Button-1>", lambda e, name=data["name"]: self.select_streamer(name))
@@ -236,6 +252,7 @@ class TwitchRaidApp(ctk.CTk):
 
             status_text = self.t.get("online") if data["is_online"] else self.t.get("offline")
             name_text = f"{data['name']} ({status_text})"
+            
             lbl_name = ctk.CTkLabel(info_frame, text=name_text, font=ctk.CTkFont(size=12, weight="bold"), anchor="w")
             lbl_name.pack(fill="x")
             lbl_name.bind("<Button-1>", lambda e, name=data["name"]: self.select_streamer(name))
@@ -245,7 +262,7 @@ class TwitchRaidApp(ctk.CTk):
             else:
                 last_time = data['last_raided'] if data['last_raided'] else self.t.get("never")
                 details = self.t.get("last_raided", "Last Raid: {date}").format(date=last_time)
-
+                
             lbl_details = ctk.CTkLabel(info_frame, text=details, font=ctk.CTkFont(size=10), text_color="gray", anchor="w")
             lbl_details.pack(fill="x")
             lbl_details.bind("<Button-1>", lambda e, name=data["name"]: self.select_streamer(name))
@@ -255,11 +272,13 @@ class TwitchRaidApp(ctk.CTk):
 
     def select_streamer(self, name):
         try:
-            self.entry_streamer.delete(0, ctk.END)
-            self.entry_streamer.insert(0, name)
+            self.select_streamer_name = name
+    
+            if hasattr(self, "last_streamer_data") and self.last_streamer_data:
+                self._render_favorites_ui(self.last_streamer_data)
         except Exception as e:
             print(f"Error occurred while selecting streamer: {e}")
-
+        
     def load_streamers_async(self, usernames):
         def background_worker():
             streamers_data = self.twitch.get_streamers_info(usernames)
@@ -276,13 +295,15 @@ class TwitchRaidApp(ctk.CTk):
         favorites = get_favorites_db()
         matches = [fav for fav in favorites if current_text in fav.lower()]
         
-        if not matches:
+        if not matches or (len(matches) == 1 and matches[0].lower() == current_text):
             self.hide_suggestions()
             return
 
         self.suggestion_listbox.delete(0, tk.END)
         for match in matches:
             self.suggestion_listbox.insert(tk.END, match)
+            
+        self.suggestion_listbox.select_set(0)
             
         x_pos = self.input_frame.winfo_x() + self.entry_streamer.winfo_x()
         y_pos = self.input_frame.winfo_y() + self.entry_streamer.winfo_y() + self.entry_streamer.winfo_height() + 2
@@ -294,6 +315,7 @@ class TwitchRaidApp(ctk.CTk):
             height=min(len(matches) * 25, 100)
         )
         self.suggestion_frame.lift()
+        self.suggestion_listbox.focus_set()
 
     def on_suggestion_select(self, event):
         selection = self.suggestion_listbox.curselection()
@@ -302,9 +324,13 @@ class TwitchRaidApp(ctk.CTk):
             self.entry_streamer.delete(0, ctk.END)
             self.entry_streamer.insert(0, selected_name)
             self.hide_suggestions()
+            self.entry_streamer.icursor(ctk.END)
 
     def hide_suggestions(self):
-        self.suggestion_frame.place_forget()
+        try:
+            self.suggestion_frame.place_forget()
+        except Exception:
+            pass
 
     def add_favorite(self):
         name = self.entry_streamer.get().strip().lower()
@@ -316,7 +342,7 @@ class TwitchRaidApp(ctk.CTk):
             return
 
         if add_favorite_db(name):
-            self.refresh_favorites_list()
+            threading.Thread(target=self.refresh_favorites_list, daemon=True).start()
             msg = self.t.get("fav_added").format(name=name)
             self.label_status.configure(text=msg, text_color="green")
         else:
@@ -345,7 +371,10 @@ class TwitchRaidApp(ctk.CTk):
 
     def on_raid_click(self, event=None):
         if not self.is_raiding:
-            streamer_name = self.entry_streamer.entry.get().strip().lower() if hasattr(self.entry_streamer, "entry") else self.entry_streamer.get().strip().lower()
+            streamer_name = self.entry_streamer.get().strip().lower()
+            if not streamer_name and hasattr(self, "select_streamer_name") and self.select_streamer_name:
+                streamer_name = self.select_streamer_name.strip().lower()
+                
             if not streamer_name:
                 self.label_status.configure(text=self.t.get("enter_name_raid"), text_color="orange")
                 return
