@@ -3,6 +3,7 @@ import re
 import threading
 import webbrowser
 import customtkinter as ctk
+import tkinter as tk
 from PIL import Image, ImageTk
 from database import get_favorites_db, add_favorite_db, remove_favorite_db
 from settings import load_language, save_language, load_translations
@@ -34,11 +35,13 @@ class TwitchRaidApp(ctk.CTk):
     def __init__(self, lang):
         super().__init__()
 
+        self.load_token = 0
+
         self.lang = lang
         self.t = load_translations(lang)
         self.twitch = TwitchClient()
-
-        self.title("RaidItBetter - v0.2.1-alpha")
+        
+        self.title("RaidItBetter - v0.3.1-alpha")
         self.geometry("520x620")
         self.resizable(False, False)
 
@@ -95,6 +98,24 @@ class TwitchRaidApp(ctk.CTk):
 
         self.entry_streamer = ctk.CTkEntry(self.input_frame, placeholder_text=self.t.get("placeholder"), width=335, height=35)
         self.entry_streamer.pack(side="left")
+        
+        # --- Autocomplete -- #
+        
+        self.entry_streamer.bind("<KeyRelease>", self.on_streamer_type)
+        
+        self.suggestion_frame = tk.Frame(self, bg="#2b2b2b", highlightbackground="gray", highlightthickness=1)
+        self.suggestion_listbox = tk.Listbox(
+            self.suggestion_frame,
+            bg="#2b2b2b",
+            fg="white",
+            selectbackground="#1f6aa5",
+            bd=0,
+            highlightthickness=0,
+            font=("Arial", 11)
+        )
+        self.suggestion_listbox.pack(fill="both", expand=True, padx=2, pady=2)
+        self.suggestion_listbox.bind("<<ListboxSelect>>", self.on_suggestion_select)
+        #-----------------
 
         self.btn_add_fav = ctk.CTkButton(self.input_frame, text=self.t.get("save_fav"), fg_color="#333333", hover_color="#444444", width=115, height=35, command=self.add_favorite)
         self.btn_add_fav.pack(side="right")
@@ -103,6 +124,8 @@ class TwitchRaidApp(ctk.CTk):
         self.favorites_frame.pack(pady=10, padx=20)
 
         # Raid Button
+        self.is_raiding = False
+        self.raid_thread = None
         self.btn_raid = ctk.CTkButton(self, text=self.t.get("start_raid"), fg_color="#e91916", hover_color="#c81310", width=460, height=40, font=ctk.CTkFont(size=14, weight="bold"), command=self.on_raid_click)
         self.btn_raid.pack(pady=5)
 
@@ -138,6 +161,10 @@ class TwitchRaidApp(ctk.CTk):
         new_lang = "en" if self.lang == "de" else "de"
         self.change_language(new_lang)
 
+    def update_ui(streamers_data):
+        for streamer in streamers_data:
+            print(f"Streamer: {streamer['name']}, Online: {streamer['is_online']}")
+
     def update_ui_texts(self):
         self.title_label.configure(text=self.t.get("title", "⚡ RaidItBetter"))
         login_text = self.t.get("logout") if self.twitch.access_token else self.t.get("login")
@@ -153,27 +180,44 @@ class TwitchRaidApp(ctk.CTk):
         self.btn_lang.configure(text=lang_text)
 
     def refresh_favorites_list(self):
+        self.load_token += 1
+        current_token = self.load_token
+
         for widget in self.favorites_frame.winfo_children():
-            widget.destroy()
+            try:
+                widget.destroy()
+            except Exception:
+                pass
 
         favorites = get_favorites_db()
         if not favorites:
-            lbl = ctk.CTkLabel(self.favorites_frame, text=self.t.get("select_fav", "Keine Favoriten gespeichert"), text_color="gray")
+            lbl = ctk.CTkLabel(self.favorites_frame, text=self.t.get("select_fav", "No favourites saved"), text_color="gray")
             lbl.pack(pady=20)
             return
 
-        threading.Thread(target=self._load_favorites_data, args=(favorites,), daemon=True).start()
+        threading.Thread(target=self.load_favorites_data, args=(favorites, current_token), daemon=True).start()
 
-    def _load_favorites_data(self, favorites):
+    def load_favorites_data(self, favorites, token):
         try:
             streamer_data = self.twitch.get_streamers_info(favorites)
-            self.after(0, lambda: self._render_favorites_ui(streamer_data))
+            self.after(0, lambda: self._safe_render(streamer_data, token))
         except Exception as e:
-            print(f"FEHLER beim Laden der Favoriten: {e}")
+            print(f"ERROR while loading favorites: {e}")
+
+    def _safe_render(self, streamer_data, token):
+        if token != self.load_token:
+            return
+        try:
+            self._render_favorites_ui(streamer_data)
+        except Exception as e:
+            print(f"Render error: {e}")
 
     def _render_favorites_ui(self, streamer_data):
         for widget in self.favorites_frame.winfo_children():
-            widget.destroy()
+            try:
+                widget.destroy()
+            except Exception:
+                pass
 
         for data in streamer_data:
             card = ctk.CTkFrame(self.favorites_frame, fg_color=("white", "gray22"), corner_radius=6)
@@ -200,7 +244,7 @@ class TwitchRaidApp(ctk.CTk):
                 details = data['game_name']
             else:
                 last_time = data['last_raided'] if data['last_raided'] else self.t.get("never")
-                details = self.t.get("last_raided", "Letzter Raid: {date}").format(date=last_time)
+                details = self.t.get("last_raided", "Last Raid: {date}").format(date=last_time)
 
             lbl_details = ctk.CTkLabel(info_frame, text=details, font=ctk.CTkFont(size=10), text_color="gray", anchor="w")
             lbl_details.pack(fill="x")
@@ -210,8 +254,57 @@ class TwitchRaidApp(ctk.CTk):
             btn_del.pack(side="right", padx=8)
 
     def select_streamer(self, name):
-        self.entry_streamer.delete(0, ctk.END)
-        self.entry_streamer.insert(0, name)
+        try:
+            self.entry_streamer.delete(0, ctk.END)
+            self.entry_streamer.insert(0, name)
+        except Exception as e:
+            print(f"Error occurred while selecting streamer: {e}")
+
+    def load_streamers_async(self, usernames):
+        def background_worker():
+            streamers_data = self.twitch.get_streamers_info(usernames)
+            self.after(0, lambda: self._render_favorites_ui(streamers_data))
+        threading.Thread(target=background_worker, daemon=True).start()
+        
+    def on_streamer_type(self, event=None):
+        current_text = self.entry_streamer.get().strip().lower()
+        
+        if not current_text:
+            self.hide_suggestions()
+            return
+
+        favorites = get_favorites_db()
+        matches = [fav for fav in favorites if current_text in fav.lower()]
+        
+        if not matches:
+            self.hide_suggestions()
+            return
+
+        self.suggestion_listbox.delete(0, tk.END)
+        for match in matches:
+            self.suggestion_listbox.insert(tk.END, match)
+            
+        x_pos = self.input_frame.winfo_x() + self.entry_streamer.winfo_x()
+        y_pos = self.input_frame.winfo_y() + self.entry_streamer.winfo_y() + self.entry_streamer.winfo_height() + 2
+        
+        self.suggestion_frame.place(
+            x=x_pos, 
+            y=y_pos, 
+            width=self.entry_streamer.winfo_width(), 
+            height=min(len(matches) * 25, 100)
+        )
+        self.suggestion_frame.lift()
+
+    def on_suggestion_select(self, event):
+        selection = self.suggestion_listbox.curselection()
+        if selection:
+            selected_name = self.suggestion_listbox.get(selection[0])
+            self.entry_streamer.delete(0, ctk.END)
+            self.entry_streamer.insert(0, selected_name)
+            self.hide_suggestions()
+
+    def hide_suggestions(self):
+        self.suggestion_frame.place_forget()
 
     def add_favorite(self):
         name = self.entry_streamer.get().strip().lower()
@@ -232,7 +325,7 @@ class TwitchRaidApp(ctk.CTk):
     def remove_favorite(self, name):
         remove_favorite_db(name)
         self.refresh_favorites_list()
-        msg = self.t.get("fav_removed", "Favorit {name} entfernt").format(name=name)
+        msg = self.t.get("fav_removed", "Favourite {name} removed").format(name=name)
         self.label_status.configure(text=msg, text_color="blue")
 
     def handle_auth_click(self):
@@ -251,22 +344,63 @@ class TwitchRaidApp(ctk.CTk):
         self.refresh_favorites_list()
 
     def on_raid_click(self, event=None):
-        streamer_name = self.entry_streamer.get().strip().lower()
-        if not streamer_name:
-            self.label_status.configure(text=self.t.get("enter_name_raid"), text_color="orange")
+        if not self.is_raiding:
+            streamer_name = self.entry_streamer.entry.get().strip().lower() if hasattr(self.entry_streamer, "entry") else self.entry_streamer.get().strip().lower()
+            if not streamer_name:
+                self.label_status.configure(text=self.t.get("enter_name_raid"), text_color="orange")
+                return
+
+            if not re.match(r"^\w{1,25}$", streamer_name):
+                self.label_status.configure(text=self.t.get("invalid_streamer"), text_color="red")
+                return
+
+            self.is_raiding = True
+            self.raid_cancelled = False
+            self.btn_raid.configure(text="Abort Raid", fg_color="#333333", hover_color="#444444")
+
+            searching_msg = self.t.get("searching").format(name=streamer_name)
+            self.label_status.configure(text=searching_msg, text_color="blue")
+
+            def run():
+                success, message = self.twitch.execute_raid(streamer_name)
+                
+                if not success:
+                    if self.raid_cancelled:
+                        return
+                    self.after(0, lambda: self.reset_raid_button_state())
+                    self.after(0, lambda: self.label_status.configure(text=message, text_color="red"))
+                    return
+
+                self.after(0, lambda: self.label_status.configure(text=message, text_color="green"))
+
+                def auto_reset():
+                    if self.is_raiding and not self.raid_cancelled:
+                        self.is_raiding = False
+                        self.reset_raid_button_state()
+                        self.label_status.configure(text="⏱️ Raid-Time expired.", text_color="gray")
+
+                self.after(90000, auto_reset)
+
+            self.raid_thread = threading.Thread(target=run, daemon=True)
+            self.raid_thread.start()
+        else:
+            self.raid_cancelled = True
+            self.is_raiding = False
+            
+            def cancel_worker():
+                success, message = self.twitch.cancel_raid()
+                color = "green" if success else "orange"
+                self.after(0, lambda: self.label_status.configure(text=message, text_color=color))
+                self.after(0, lambda: self.reset_raid_button_state())
+
+            threading.Thread(target=cancel_worker, daemon=True).start()
+
+    def reset_raid_button_state(self):
+        self.is_raiding = False
+        self.btn_raid.configure(text=self.t.get("start_raid"), fg_color="#e91916", hover_color="#c81310")
+
+    def report_callback_exception(self, exc, val, tb):
+        if "invalid command name" in str(val):
             return
-
-        if not re.match(r"^\w{1,25}$", streamer_name):
-            self.label_status.configure(text=self.t.get("invalid_streamer"), text_color="red")
-            return
-
-        searching_msg = self.t.get("searching").format(name=streamer_name)
-        self.label_status.configure(text=searching_msg, text_color="blue")
-
-        def run():
-            success, message = self.twitch.execute_raid(streamer_name)
-            color = "green" if success else "red"
-            self.after(0, lambda: self.label_status.configure(text=message, text_color=color))
-            self.after(0, self.refresh_favorites_list)
-
-        threading.Thread(target=run, daemon=True).start()
+        import traceback
+        traceback.print_exception(exc, val, tb)

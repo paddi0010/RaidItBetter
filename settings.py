@@ -8,7 +8,6 @@ def get_base_path():
     return os.path.dirname(os.path.abspath(__file__))
 
 def get_desktop_folder_path():
-    """Erstellt den RaidItBetter-Ordner auf dem Desktop automatisch, falls er nicht existiert."""
     desktop = os.path.join(os.path.expanduser("~"), "Desktop")
     app_folder = os.path.join(desktop, "RaidItBetter")
     os.makedirs(app_folder, exist_ok=True)
@@ -36,7 +35,7 @@ def save_language(lang):
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
     except Exception as e:
-        print(f"Fehler beim Speichern der Sprache: {e}")
+        print(f"Error while saving language: {e}")
 
 def load_translations(lang):
     base_path = get_base_path()
@@ -45,5 +44,5 @@ def load_translations(lang):
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"Fehler beim Laden der Sprachdatei {file_path}: {e}")
+        print(f"Error while loading translation file {file_path}: {e}")
         return {}

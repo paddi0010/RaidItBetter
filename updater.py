@@ -3,7 +3,7 @@ import webbrowser
 from tkinter import messagebox
 
 GITHUB_REPO = "paddi0010/RaidItBetter"
-CURRENT_VERSION = "0.2.1 alpha"
+CURRENT_VERSION = "0.3.1 alpha"
 
 def check_update_status():
     url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
@@ -30,14 +30,14 @@ def check_for_updates(parent_window=None, silent=False):
     has_update, release_url = check_update_status()
     
     if has_update:
-        msg = (f"Eine neue Version ist verfügbar!\n"
-               f"Deine aktuelle Version: {CURRENT_VERSION}\n\n"
-               "Möchtest du die Release-Seite im Browser öffnen, um das Update herunterzuladen?")
-        if messagebox.askyesno("Update verfügbar", msg, parent=parent_window):
+        msg = (f"A new version is available!\n"
+               f"Your current version: {CURRENT_VERSION}\n\n"
+               "Would you like to open the release page in your browser to download the update?")
+        if messagebox.askyesno("Update available", msg, parent=parent_window):
             webbrowser.open(release_url)
     elif release_url:
         if not silent:
-            messagebox.showinfo("Kein Update", "Du verwendest bereits die neueste Version.", parent=parent_window)
+            messagebox.showinfo("No Update", "You are already using the latest version.", parent=parent_window)
     else:
         if not silent:
-            messagebox.showwarning("Hinweis", "Es konnten keine Update-Informationen von GitHub abgerufen werden (evtl. existiert noch kein Release).", parent=parent_window)
+            messagebox.showwarning("Notice", "Could not retrieve update information from GitHub (possibly no release exists).", parent=parent_window)

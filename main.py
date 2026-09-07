@@ -12,7 +12,7 @@ if __name__ == "__main__":
         dialog.mainloop()
         lang = load_language()
         if not lang:
-            lang = "de"
+            lang = "en"
             
     app = TwitchRaidApp(lang)
     app.mainloop()
