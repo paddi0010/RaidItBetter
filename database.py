@@ -3,7 +3,7 @@ import sqlite3
 from settings import get_desktop_folder_path
 
 def get_db_path():
-    folder = get_desktop_folder_path()
+    folder = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(folder, "favorites.db")
 
 DB_FILE = get_db_path()
