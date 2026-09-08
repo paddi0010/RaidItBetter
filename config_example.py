@@ -1,0 +1,3 @@
+CLIENT_ID = "CLIENT ID"
+CLIENT_SECRET = "CLIENT SECRET"
+REDIRECT_URI = "http://localhost:3000/callback"
