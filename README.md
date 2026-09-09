@@ -19,7 +19,7 @@ Twitch's native dashboard is clunky when you're trying to wrap up a stream and s
 ### Option 1: Running from Source (Recommended & Stable)
 The most reliable way to run the application without encountering Windows security blocks is directly via the source code:
 
-1. **Install Python**: Download and install Python from the official [Python website](https://www.python.org/downloads/)[cite: 1]. Make sure to check the box **"Add Python to PATH"** during installation.
+1. **Install Python**: Download and install Python from the official [Python website](https://www.python.org/downloads/). Make sure to check the box **"Add Python to PATH"** during installation.
 2. **Download the Project**: Go to the top of this GitHub repository, click the green **Code** button, and select **Download ZIP**. Extract the ZIP file to a folder of your choice.
 3. **Get your Twitch API Credentials**:
    * Go to the [Twitch Developer Console](https://dev.twitch.tv/console) and log in with your Twitch account.
