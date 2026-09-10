@@ -1,0 +1,26 @@
+v0.4.1-alpha
+
+- Live Status auto refresh: 
+Die Favoritenliste aktualisiert sich nun alle 60 sekunden.
+
+- Online Filter: Ein neuer Schalter wurde hinzugefügt, 
+um die Ansicht auf aktuell streamende kanäle umzuschalten.
+
+- Verbesserte Bedienbarkeit: 
+Enter Shotcut: Man kann Favoriten im Eingabefeld jetzt direkt
+durch drücken der Return taste abspeichern.
+
+- Autocomplete entfernt: Die anfängliche 
+Autovervollständigung-Listbox wurde entfernt, 
+da sie beim Tippen den Fokus blockiert hat.
+
+- 
+
+
+Bugs:
+- Behebung diverser TypeError-Ausnahmen beim asynchronen Rendern 
+der Favoriten-UI und beim Übergeben von Argumenten 
+(favorites, token).
+
+- Das UI arbeitet stabiler, greift auf gecachte Daten zurück und 
+vermeidet unnötige, blockierende Netzwerk-Requests.
