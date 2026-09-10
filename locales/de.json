@@ -20,5 +20,7 @@
   "online": "Online",
   "offline": "Offline",
   "last_raided": "Letzter Raid: {date}",
-  "never": "Nie"
+  "never": "Nie",
+  "only_online": "Nur Online Kanäle",
+  "no_online_favs": "Keine Online-Kanäle gefunden"
 }

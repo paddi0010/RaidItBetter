@@ -34,14 +34,23 @@ class LanguageSelectDialog(ctk.CTk):
 class TwitchRaidApp(ctk.CTk):
     def __init__(self, lang):
         super().__init__()
+        
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Paddi.RaidItBetter.v0.4.1")
+        except Exception:
+            pass
 
         self.load_token = 0
+        
+        self.show_only_online = False
+        self.last_streamer_data = []
 
         self.lang = lang
         self.t = load_translations(lang)
         self.twitch = TwitchClient()
         
-        self.title("RaidItBetter - v0.3.2-alpha")
+        self.title("RaidItBetter - v0.4.1-alpha")
         self.geometry("520x620")
         self.resizable(False, False)
 
@@ -55,7 +64,7 @@ class TwitchRaidApp(ctk.CTk):
         self.geometry(f"{width}x{height}+{x}+{y}")
 
         if os.path.exists("assets/icon.ico"):
-            self.iconbitmap("assets/icon.ico")
+            self.iconbitmap("assets/icon_task.ico")
 
         # Header
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -99,31 +108,26 @@ class TwitchRaidApp(ctk.CTk):
         self.entry_streamer = ctk.CTkEntry(self.input_frame, placeholder_text=self.t.get("placeholder"), width=335, height=35)
         self.entry_streamer.pack(side="left")
         
+        self.entry_streamer.bind("<Return>", lambda event: self.add_favorite())
+        
         self.select_streamer_name = None
-        
-        # --- Autocomplete -- #
-        
-        self.entry_streamer.bind("<KeyRelease>", self.on_streamer_type)
-        
-        self.suggestion_frame = tk.Frame(self, bg="#2b2b2b", highlightbackground="gray", highlightthickness=1)
-        self.suggestion_listbox = tk.Listbox(
-            self.suggestion_frame,
-            bg="#2b2b2b",
-            fg="white",
-            selectbackground="#1f6aa5",
-            selectforeground="white",
-            activestyle="none",
-            exportselection=False,
-            bd=0,
-            highlightthickness=0,
-            font=("Arial", 11)
-        )
-        self.suggestion_listbox.pack(fill="both", expand=True, padx=2, pady=2)
-        self.suggestion_listbox.bind("<<ListboxSelect>>", self.on_suggestion_select)
-        #-----------------
 
         self.btn_add_fav = ctk.CTkButton(self.input_frame, text=self.t.get("save_fav"), fg_color="#333333", hover_color="#444444", width=115, height=35, command=self.add_favorite)
         self.btn_add_fav.pack(side="right")
+        
+        self.show_only_online = False
+        
+        # Online Filter
+        self.filter_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.filter_frame.pack(fill="x", padx=20, pady=(5,0))
+        
+        self.switch_online_filter = ctk.CTkSwitch(
+            self.filter_frame,
+            text=self.t.get("only_online", "Nur Online Kanäle"),
+            font=ctk.CTkFont(size=11),
+            command=self.toggle_online_filter
+        )
+        self.switch_online_filter.pack(side="right")
 
         self.favorites_frame = ctk.CTkScrollableFrame(self, width=460, height=290, fg_color=("gray92", "gray17"))
         self.favorites_frame.pack(pady=10, padx=20)
@@ -140,6 +144,9 @@ class TwitchRaidApp(ctk.CTk):
 
         self.refresh_favorites_list()
         threading.Thread(target=self.check_app_updates_background, daemon=True).start()
+        threading.Thread(target=self.validate_token_on_startup, daemon=True).start()
+        
+        self.start_auto_refresh()
 
     def check_app_updates_background(self):
         import time
@@ -148,6 +155,16 @@ class TwitchRaidApp(ctk.CTk):
             color = BTN_ORANGE if has_update else (BTN_GREEN if self.latest_release_url else BTN_GRAY)
             self.after(0, lambda c=color: self.btn_update.configure(fg_color=c))
             time.sleep(1800)
+            
+    def validate_token_on_startup(self):
+        is_valid = self.twitch.validate_and_refresh_if_needed()
+        if not is_valid and self.twitch.access_token:
+            
+            self.after(0, lambda: self.twitch.logout())
+            self.after(0, lambda: self.btn_login.configure(text=self.t.get("login"), fg_color="#9146FF", hover_color="#772ce8"))
+            self.after(0, lambda: self.label_status.configure(text="❌ Session expired. Please log in again.", text_color="orange"))
+        elif is_valid:
+            self.after(0, lambda: self.btn_login.configure(text=self.t.get("logout"), fg_color="#d9534f", hover_color="#c9302c"))
 
     def on_update_click(self):
         has_update, self.latest_release_url = check_update_status()
@@ -165,7 +182,15 @@ class TwitchRaidApp(ctk.CTk):
     def toggle_language(self):
         new_lang = "en" if self.lang == "de" else "de"
         self.change_language(new_lang)
-
+        
+    def toggle_online_filter(self):
+        self.show_only_online = self.switch_online_filter.get()
+        
+        if hasattr(self, "last_streamer_data") and self.last_streamer_data:
+            self._render_favorites_ui(self.last_streamer_data)
+        else:
+            self._render_favorites_ui()
+        
     def update_ui(streamers_data):
         for streamer in streamers_data:
             print(f"Streamer: {streamer['name']}, Online: {streamer['is_online']}")
@@ -180,6 +205,8 @@ class TwitchRaidApp(ctk.CTk):
         self.btn_add_fav.configure(text=self.t.get("save_fav"))
         self.btn_raid.configure(text=self.t.get("start_raid"))
         self.label_status.configure(text=self.t.get("ready"))
+        
+        self.switch_online_filter.configure(text=self.t.get("only_online", "Nur Online Kanäle"))
         
         lang_text = "🇩🇪 DE" if self.lang == "de" else "🇬🇧 EN"
         self.btn_lang.configure(text=lang_text)
@@ -198,6 +225,18 @@ class TwitchRaidApp(ctk.CTk):
             return
 
         threading.Thread(target=self.load_favorites_data, args=(favorites, current_token), daemon=True).start()
+        
+    def start_auto_refresh(self):
+        def background_refresh():
+            favorites = get_favorites_db()
+            if favorites:
+                streamers_data = self.twitch.get_streamers_info(favorites)
+            
+                self.after(0, lambda: self._render_favorites_ui(streamers_data))
+            
+        threading.Thread(target=background_refresh, daemon=True).start()
+        
+        self.auto_refresh_timer = self.after(60000, self.start_auto_refresh)
 
     def load_favorites_data(self, favorites, token):
         try:
@@ -209,21 +248,34 @@ class TwitchRaidApp(ctk.CTk):
     def _safe_render(self, streamer_data, token):
         if token != self.load_token:
             return
+        self.last_streamer_data = streamer_data
         try:
             self._render_favorites_ui(streamer_data)
         except Exception as e:
             print(f"Render error: {e}")
 
-    def _render_favorites_ui(self, streamer_data):
-        self.last_streamer_data = streamer_data
+    def _render_favorites_ui(self, streamer_data=None):
         
         for widget in self.favorites_frame.winfo_children():
-            try:
                 widget.destroy()
-            except Exception:
-                pass
+            
+        if getattr(self, "show_only_online", False):
+            display_data = [d for d in streamer_data if d["is_online"]]
+        else:
+            display_data = streamer_data
+            
+        if not display_data:
+            lbl = ctk.CTkLabel(
+                self.favorites_frame, 
+                text=self.t.get("no_online_favs", "Keine Online-Kanäle gefunden") 
+                if getattr(self, "show_only_online", False) 
+                else self.t.get("select_fav", "No favourites saved"), 
+                text_color="gray"
+            )
+            lbl.pack(pady=20)
+            return
 
-        for data in streamer_data:
+        for data in display_data:
             print(f"DEBUG Streamer: {data['name']} -> Online: {data['is_online']}, Game: {data.get('game_name')}")
             is_selected = (data["name"].lower() == str(self.select_streamer_name).lower())
             
@@ -284,66 +336,18 @@ class TwitchRaidApp(ctk.CTk):
             streamers_data = self.twitch.get_streamers_info(usernames)
             self.after(0, lambda: self._render_favorites_ui(streamers_data))
         threading.Thread(target=background_worker, daemon=True).start()
-        
-    def on_streamer_type(self, event=None):
-        current_text = self.entry_streamer.get().strip().lower()
-        
-        if not current_text:
-            self.hide_suggestions()
-            return
-
-        favorites = get_favorites_db()
-        matches = [fav for fav in favorites if current_text in fav.lower()]
-        
-        if not matches or (len(matches) == 1 and matches[0].lower() == current_text):
-            self.hide_suggestions()
-            return
-
-        self.suggestion_listbox.delete(0, tk.END)
-        for match in matches:
-            self.suggestion_listbox.insert(tk.END, match)
-            
-        self.suggestion_listbox.select_set(0)
-            
-        x_pos = self.input_frame.winfo_x() + self.entry_streamer.winfo_x()
-        y_pos = self.input_frame.winfo_y() + self.entry_streamer.winfo_y() + self.entry_streamer.winfo_height() + 2
-        
-        self.suggestion_frame.place(
-            x=x_pos, 
-            y=y_pos, 
-            width=self.entry_streamer.winfo_width(), 
-            height=min(len(matches) * 25, 100)
-        )
-        self.suggestion_frame.lift()
-        self.suggestion_listbox.focus_set()
-
-    def on_suggestion_select(self, event):
-        selection = self.suggestion_listbox.curselection()
-        if selection:
-            selected_name = self.suggestion_listbox.get(selection[0])
-            self.entry_streamer.delete(0, ctk.END)
-            self.entry_streamer.insert(0, selected_name)
-            self.hide_suggestions()
-            self.entry_streamer.icursor(ctk.END)
-
-    def hide_suggestions(self):
-        try:
-            self.suggestion_frame.place_forget()
-        except Exception:
-            pass
 
     def add_favorite(self):
-        name = self.entry_streamer.get().strip().lower()
-        if not name:
-            self.label_status.configure(text=self.t.get("enter_name_save"), text_color="orange")
+        streamer_name = self.entry_streamer.get().strip().lower()
+        if not streamer_name:
             return
-        if not re.match(r"^\w{1,25}$", name):
+        if not re.match(r"^\w{1,25}$", streamer_name):
             self.label_status.configure(text=self.t.get("invalid_name"), text_color="red")
             return
 
-        if add_favorite_db(name):
+        if add_favorite_db(streamer_name):
             threading.Thread(target=self.refresh_favorites_list, daemon=True).start()
-            msg = self.t.get("fav_added").format(name=name)
+            msg = self.t.get("fav_added").format(name=streamer_name)
             self.label_status.configure(text=msg, text_color="green")
         else:
             self.label_status.configure(text=self.t.get("fav_exists"), text_color="blue")
