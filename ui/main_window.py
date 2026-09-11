@@ -5,7 +5,7 @@ import webbrowser
 import customtkinter as ctk
 import tkinter as tk
 from PIL import Image, ImageTk
-from database import get_favorites_db, add_favorite_db, remove_favorite_db
+from database import get_favorites_db, add_favorite_db, remove_favorite_db, add_raid_history_db, get_raid_history_db, get_last_raid_for_channel
 from settings import load_language, save_language, load_translations
 from twitch_api import TwitchClient
 from updater import check_for_updates, check_update_status
@@ -312,7 +312,9 @@ class TwitchRaidApp(ctk.CTk):
             if data["is_online"]:
                 details = data['game_name']
             else:
-                last_time = data['last_raided'] if data['last_raided'] else self.t.get("never")
+                last_time = get_last_raid_for_channel(data['name'])
+                if not last_time:
+                    last_time = self.t.get("never")
                 details = self.t.get("last_raided", "Last Raid: {date}").format(date=last_time)
                 
             lbl_details = ctk.CTkLabel(info_frame, text=details, font=ctk.CTkFont(size=10), text_color="gray", anchor="w")
@@ -403,6 +405,12 @@ class TwitchRaidApp(ctk.CTk):
                     self.after(0, lambda: self.reset_raid_button_state())
                     self.after(0, lambda: self.label_status.configure(text=message, text_color="red"))
                     return
+
+                try:
+                    add_raid_history_db(streamer_name, viewer_count=0, status="Success")
+                    self.after(0, lambda: self.refresh_favorites_list())
+                except Exception as e:
+                    print(f"Error adding raid history: {e}")
 
                 self.after(0, lambda: self.label_status.configure(text=message, text_color="green"))
 
