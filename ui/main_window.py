@@ -1,15 +1,15 @@
 import os
 import re
 import threading
-import webbrowser
 import customtkinter as ctk
 import tkinter as tk
 from PIL import Image, ImageTk
-from database import get_favorites_db, add_favorite_db, remove_favorite_db, add_raid_history_db, get_raid_history_db, get_last_raid_for_channel
-from settings import load_language, save_language, load_translations
+from database import get_favorites_db, add_favorite_db, remove_favorite_db, add_raid_history_db, get_last_raid_for_channel
+from settings import save_language, load_translations
 from twitch_api import TwitchClient
 from updater import check_for_updates, check_update_status
-from ui.styles import BTN_GREEN, BTN_ORANGE, BTN_GRAY
+from ui.styles import ( COLOR_PRIMARY, COLOR_PRIMARY_HOVER, COLOR_DANGER, COLOR_DANGER_HOVER, COLOR_RAID, COLOR_RAID_HOVER, BTN_GREEN, BTN_ORANGE, BTN_GRAY, BTN_GRAY_HOVER, BG_CARD, BG_SCROLL )
+from ui.history_window import RaidHistoryWindow
 
 class LanguageSelectDialog(ctk.CTk):
     def __init__(self, lang=None):
@@ -96,8 +96,8 @@ class TwitchRaidApp(ctk.CTk):
 
         # Login Button
         login_text = self.t.get("logout") if self.twitch.access_token else self.t.get("login")
-        login_color = "#d9534f" if self.twitch.access_token else "#9146FF"
-        login_hover = "#c9302c" if self.twitch.access_token else "#772ce8"
+        login_color = COLOR_DANGER if self.twitch.access_token else COLOR_PRIMARY
+        login_hover = COLOR_DANGER_HOVER if self.twitch.access_token else COLOR_PRIMARY_HOVER
         
         self.btn_login = ctk.CTkButton(self, text=login_text, fg_color=login_color, hover_color=login_hover, width=460, height=35, command=self.handle_auth_click)
         self.btn_login.pack(pady=5)
@@ -129,14 +129,22 @@ class TwitchRaidApp(ctk.CTk):
         )
         self.switch_online_filter.pack(side="right")
 
-        self.favorites_frame = ctk.CTkScrollableFrame(self, width=460, height=290, fg_color=("gray92", "gray17"))
+        self.favorites_frame = ctk.CTkScrollableFrame(self, width=460, height=290, fg_color=BG_SCROLL)
         self.favorites_frame.pack(pady=10, padx=20)
 
         # Raid Button
         self.is_raiding = False
         self.raid_thread = None
-        self.btn_raid = ctk.CTkButton(self, text=self.t.get("start_raid"), fg_color="#e91916", hover_color="#c81310", width=460, height=40, font=ctk.CTkFont(size=14, weight="bold"), command=self.on_raid_click)
+        self.btn_raid = ctk.CTkButton(self, text=self.t.get("start_raid"), fg_color=COLOR_RAID, hover_color=COLOR_RAID_HOVER, width=460, height=40, font=ctk.CTkFont(size=14, weight="bold"), command=self.on_raid_click)
         self.btn_raid.pack(pady=5)
+
+        # Raid Hostory Button
+        self.btn_history = ctk.CTkButton(
+            self.header_frame, text="🧾", width=32, height=32,
+            fg_color=BTN_GRAY, hover_color=("gray75", "gray35"),
+            font=ctk.CTkFont(size=14), command=self.open_history_window
+        )
+        self.btn_history.pack(side="right", padx=(0, 5))
 
         # Status Label
         self.label_status = ctk.CTkLabel(self, text=self.t.get("ready"), text_color="gray", font=ctk.CTkFont(size=12))
@@ -187,9 +195,13 @@ class TwitchRaidApp(ctk.CTk):
         self.show_only_online = self.switch_online_filter.get()
         
         if hasattr(self, "last_streamer_data") and self.last_streamer_data:
-            self._render_favorites_ui(self.last_streamer_data)
+            current_favs = [f.lower() for f in get_favorites_db()]
+
+            valid_data = [d for d in self.last_streamer_data if d["name"].lower() in current_favs]
+
+            self._render_favorites_ui(valid_data)
         else:
-            self._render_favorites_ui()
+            self.refresh_favorites_list()
         
     def update_ui(streamers_data):
         for streamer in streamers_data:
@@ -263,6 +275,8 @@ class TwitchRaidApp(ctk.CTk):
             display_data = [d for d in streamer_data if d["is_online"]]
         else:
             display_data = streamer_data
+
+        display_data = sorted(display_data, key=lambda x: (not x["is_online"], x["name"].lower()))
             
         if not display_data:
             lbl = ctk.CTkLabel(
@@ -284,7 +298,7 @@ class TwitchRaidApp(ctk.CTk):
             
             card = ctk.CTkFrame(
                 self.favorites_frame, 
-                fg_color=("white", "gray22"), 
+                fg_color=BG_CARD, 
                 corner_radius=6,
                 border_width=border_width,
                 border_color=border_color
@@ -321,7 +335,7 @@ class TwitchRaidApp(ctk.CTk):
             lbl_details.pack(fill="x")
             lbl_details.bind("<Button-1>", lambda e, name=data["name"]: self.select_streamer(name))
 
-            btn_del = ctk.CTkButton(card, text="✕", width=25, height=25, fg_color="transparent", hover_color="#d9534f", text_color="gray", command=lambda n=data["name"]: self.remove_favorite(n))
+            btn_del = ctk.CTkButton(card, text="✕", width=25, height=25, fg_color="transparent", hover_color=COLOR_DANGER, text_color="gray", command=lambda n=data["name"]: self.remove_favorite(n))
             btn_del.pack(side="right", padx=8)
 
     def select_streamer(self, name):
@@ -356,6 +370,10 @@ class TwitchRaidApp(ctk.CTk):
 
     def remove_favorite(self, name):
         remove_favorite_db(name)
+
+        if hasattr(self, "last_streamer_data") and self.last_streamer_data:
+            self.last_streamer_data = [d for d in self.last_streamer_data if d["name"].lower() != name.lower()]
+
         self.refresh_favorites_list()
         msg = self.t.get("fav_removed", "Favourite {name} removed").format(name=name)
         self.label_status.configure(text=msg, text_color="blue")
@@ -445,3 +463,6 @@ class TwitchRaidApp(ctk.CTk):
             return
         import traceback
         traceback.print_exception(exc, val, tb)
+
+    def open_history_window(self):
+        RaidHistoryWindow(self, self.t)

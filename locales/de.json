@@ -22,5 +22,11 @@
   "last_raided": "Letzter Raid: {date}",
   "never": "Nie",
   "only_online": "Nur Online Kanäle",
-  "no_online_favs": "Keine Online-Kanäle gefunden"
+  "no_online_favs": "Keine Online-Kanäle gefunden",
+  "history_title": "📜 Letzte Raids",
+"history_empty": "Noch keine Raids aufgezeichnet.",
+"history_clear": "🗑️ Clear",
+"history_target": "🎯 Ziel",
+"history_time": "🕒 Zeit",
+"history_status": "📊 Status"
 }

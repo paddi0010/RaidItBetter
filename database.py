@@ -109,3 +109,19 @@ def get_last_raid_for_channel(channel_name):
     row = cursor.fetchone()
     conn.close()
     return row[0] if row else None
+
+def get_raid_history_db():
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT timestamp, target_channel, viewer_count, status FROM raid_history ORDER BY id DESC LIMIT 50")
+    rows = cursor.fetchall()
+    return rows
+
+def clear_raid_history_db():
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM raid_history")
+    conn.commit()
+    conn.close()
