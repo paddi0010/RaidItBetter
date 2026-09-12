@@ -2,7 +2,7 @@
 
 > ⚠️ **Heads up:** This project is currently in early **alpha**. Core features work, but expect a few rough edges or minor bugs while things are still actively being built.
 
-A small, secure desktop app built with Python and CustomTkinter to fire off Twitch raids quickly from your desktop—no browser dashboard gymnastics required.
+A small, desktop app built with Python and CustomTkinter to fire off Twitch raids quickly from your desktop—no browser dashboard gymnastics required.
 
 ## Why this exists
 
