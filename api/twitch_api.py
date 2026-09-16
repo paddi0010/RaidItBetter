@@ -8,7 +8,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import requests
 import keyring
-from config import CLIENT_ID, REDIRECT_URI, CLIENT_SECRET
+from core.config import CLIENT_ID, REDIRECT_URI, CLIENT_SECRET
 
 SERVICE_NAME = "RaidItBetter"
 TOKEN_KEY = "twitch_access_token"
@@ -368,7 +368,7 @@ class TwitchClient:
 
     def get_last_raided_from_db(self, name):
         try:
-            from database import get_last_raid_db
+            from services.database import get_last_raid_db
             return get_last_raid_db(name)
         except:
             return None

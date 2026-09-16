@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from database import get_raid_history_db, clear_raid_history_db
+from services.database import get_raid_history_db, clear_raid_history_db
 from ui.styles import BG_CARD, BG_SCROLL, COLOR_DANGER, COLOR_DANGER_HOVER, get_font_title, get_font_bold
 
 class RaidHistoryWindow(ctk.CTkToplevel):

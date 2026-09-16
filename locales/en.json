@@ -28,5 +28,12 @@
 "history_clear": "🗑️ Clear",
 "history_target": "🎯 Target",
 "history_time": "🕒 Time",
-"history_status": "📊 Status"
+"history_status": "📊 Status",
+"tooltip_update": "Check for updates",
+  "tooltip_about": "About RaidItBetter (Version & Info)",
+  "tooltip_settings": "Open settings (Language etc.)",
+  "tooltip_history": "View raid history",
+  "settings_title": "⚙️ Settings",
+  "settings_language": "Language / Sprache:",
+  "close": "Close"
 }

@@ -1,9 +1,10 @@
 import requests
 import webbrowser
 from tkinter import messagebox
+from core.settings import APP_VERSION
 
 GITHUB_REPO = "paddi0010/RaidItBetter"
-CURRENT_VERSION = "0.4.1 alpha"
+CURRENT_VERSION = f"{APP_VERSION}"
 
 def check_update_status():
     url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"

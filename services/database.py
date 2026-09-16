@@ -1,11 +1,10 @@
 import os
 import sqlite3
 from datetime import datetime
-from settings import get_desktop_folder_path
+from core.settings import get_app_data_path
 
 def get_db_path():
-    folder = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(folder, "favorites.db")
+    return os.path.join(get_app_data_path(), "favorites.db")
 
 DB_FILE = get_db_path()
 

@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from settings import load_language
+from core.settings import load_language
 from ui.main_window import LanguageSelectDialog, TwitchRaidApp
 
 ctk.set_appearance_mode("System")

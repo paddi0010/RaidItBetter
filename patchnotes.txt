@@ -1,26 +1,39 @@
-v0.4.1-alpha
+v0.5.1-alpha
 
-- Live Status auto refresh: 
-Die Favoritenliste aktualisiert sich nun alle 60 sekunden.
-
-- Online Filter: Ein neuer Schalter wurde hinzugefügt, 
-um die Ansicht auf aktuell streamende kanäle umzuschalten.
-
-- Verbesserte Bedienbarkeit: 
-Enter Shotcut: Man kann Favoriten im Eingabefeld jetzt direkt
-durch drücken der Return taste abspeichern.
-
-- Autocomplete entfernt: Die anfängliche 
-Autovervollständigung-Listbox wurde entfernt, 
-da sie beim Tippen den Fokus blockiert hat.
-
-- 
+- Vollständige UI-Modularisierung & Code-Cleanup
+ - Auslagerung der Favoriten-Einträge in eine eigene wiederverwendbare
+   StreamerCard-Komponente (ui/components.py)
+ - Das Hauptfenster (ui/main_window.py) wurde massiv verschmälert
+   und von redundantem UI-Code befreit.
+ - Das Einstellungsfenster wurde als dediziertes Panel (ui/settings_window.py)
+   integriert und dynamisch an das Übersetzungssystem angebunden.
+ - Legacy-Dateien und veraltete Buttons (z.B. reduntante Sprach-Buttons auf der Hauptseite)
+   wurden restlos entfernt.
 
 
-Bugs:
-- Behebung diverser TypeError-Ausnahmen beim asynchronen Rendern 
-der Favoriten-UI und beim Übergeben von Argumenten 
-(favorites, token).
+- Projektstruktur
+ - Die Twitch-Api-Logik wurde sauber in einen eigenen api/-Ordner ausgelagert
+   (api/twitch_api.py)
+ - Einstellungen und Konfigurationslogik wurden zentralisiert
+   (core/settings.py)
 
-- Das UI arbeitet stabiler, greift auf gecachte Daten zurück und 
-vermeidet unnötige, blockierende Netzwerk-Requests.
+
+- Internationalisierung
+ - Das dynamische JSON-basierte sprachsystem (locales/de.json)
+   und (locales/en.json) greift nun übergreifend - auch das Einstellungs-Panel
+   und alle Tooltips wechseln die Sprache nun in echtzeit.
+
+
+- Sicherheit
+ - Migration der Konfigurationsdatei (settings.json) und der SQLite
+   Datenbank(favorites.db) vom unsicheren Desktop Verzeichnis in den
+   geschützten System Pfad (AppData/Roaming/RaidItBetter)
+ - Schutz sensibler Token Daten durch systemeigene Verschlüsselung via keyring.
+
+
+- Stabilität & Bugfixes
+ - Korrektur vom Import- und Dateipfaden nach der neuen Ordnerstruktur 
+   (z.B. für die Übersetzungsdateien)
+ - Behebung von AttributeError-Fehlern bei UI-Aktualisierungen.
+ - Solide Fehlerbehandlung für Threads, Token-Validierung und Event-Callbacks
+ 

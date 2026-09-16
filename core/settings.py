@@ -2,6 +2,8 @@ import os
 import sys
 import json
 
+APP_VERSION = "v0.5.1-alpha"
+
 def get_base_path():
     if getattr(sys, 'frozen', False):
         return sys._MEIPASS
@@ -13,7 +15,13 @@ def get_desktop_folder_path():
     os.makedirs(app_folder, exist_ok=True)
     return app_folder
 
-CONFIG_FILE = os.path.join(get_desktop_folder_path(), "settings.json")
+def get_app_data_path():
+    base_dir = os.getenv('APPDATA') or os.path.expanduser("~")
+    app_folder = os.path.join(base_dir, "RaidItBetter")
+    os.makedirs(app_folder, exist_ok=True)
+    return app_folder
+
+CONFIG_FILE = os.path.join(get_app_data_path(), "settings.json")
 
 def load_language():
     if os.path.exists(CONFIG_FILE):
@@ -39,7 +47,7 @@ def save_language(lang):
 
 def load_translations(lang):
     base_path = get_base_path()
-    file_path = os.path.join(base_path, "locales", f"{lang}.json")
+    file_path = os.path.join(base_path, "..", "locales", f"{lang}.json")
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)

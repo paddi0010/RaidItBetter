@@ -28,5 +28,12 @@
 "history_clear": "🗑️ Clear",
 "history_target": "🎯 Ziel",
 "history_time": "🕒 Zeit",
-"history_status": "📊 Status"
+"history_status": "📊 Status",
+  "tooltip_update": "Nach Updates suchen",
+  "tooltip_about": "Über RaidItBetter (Version & Infos)",
+  "tooltip_settings": "Einstellungen öffnen (Sprache etc.)",
+  "tooltip_history": "Raid-Verlauf anzeigen",
+  "settings_title": "⚙️ Einstellungen",
+  "settings_language": "Sprache / Language:",
+  "close": "Schließen"
 }

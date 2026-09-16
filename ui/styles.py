@@ -1,9 +1,9 @@
 import customtkinter as ctk
 
-COLOR_PRIMARY = "#9146FF"      # Twitch Purple
+COLOR_PRIMARY = "#9146FF"    
 COLOR_PRIMARY_HOVER = "#772ce8"
-COLOR_SUCCESS = "#28a745"      # Grün
-COLOR_DANGER = "#d9534f"       # Rot / Löschen
+COLOR_SUCCESS = "#28a745"     
+COLOR_DANGER = "#d9534f"     
 COLOR_DANGER_HOVER = "#c9302c"
 COLOR_RAID = "#e91916"         # Raid Button
 COLOR_RAID_HOVER = "#c81310"
