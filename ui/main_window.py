@@ -418,7 +418,7 @@ class TwitchRaidApp(ctk.CTk):
                 except Exception as ex:
                     self.after(0, lambda: self.label_status.configure(text=f"Raid-Fehler: {ex}", text_color="red"))
                     self.after(0, lambda: self.reset_raid_button_state())
-                self.raid_thread = threading.Thread(target=run, deamon=True)
+                self.raid_thread = threading.Thread(target=run, daemon=True)
                 self.raid_thread.start()
 
                 def auto_reset():
