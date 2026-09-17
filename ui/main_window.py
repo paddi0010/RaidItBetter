@@ -19,7 +19,7 @@ class LanguageSelectDialog(ctk.CTk):
     def __init__(self, lang=None):
         super().__init__()
         self.title("RaidItBetter - Sprachauswahl / Language")
-        self.geometry("320x220")
+        self.geometry("520x620")
         self.resizable(False, False)
 
         self.label = ctk.CTkLabel(self, text="Bitte Sprache wählen\nPlease select language", font=ctk.CTkFont(size=14, weight="bold"))
@@ -69,8 +69,25 @@ class TwitchRaidApp(ctk.CTk):
         if os.path.exists("assets/icon.ico"):
             self.iconbitmap("assets/icon_task.ico")
 
-        self.main_content_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.main_content_frame.pack(side="left", fill="both", expand=True)
+        # --- STATUSBAR ---
+        self.status_bar_frame = ctk.CTkFrame(self, fg_color=("gray85", "gray17"), height=30, corner_radius=0)
+        self.status_bar_frame.pack(side="bottom", fill="x")
+        self.status_bar_frame.pack_propagate(False)
+
+        self.label_status = ctk.CTkLabel(
+            self.status_bar_frame, 
+            text=self.t.get("ready"), 
+            font=ctk.CTkFont(size=11)
+        )
+        self.label_status.pack(side="left", padx=12, pady=4)
+
+        # --- Main-CONTAINER
+        self.container_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.container_frame.pack(side="top", fill="both", expand=True)
+
+        self.main_content_frame = ctk.CTkFrame(self.container_frame, fg_color="transparent", width=520)
+        self.main_content_frame.pack(side="left", fill="both", expand=False)
+        self.main_content_frame.pack_propagate(False)
 
         # Header
         self.header_frame = ctk.CTkFrame(self.main_content_frame, fg_color="transparent")
@@ -79,25 +96,25 @@ class TwitchRaidApp(ctk.CTk):
         self.title_label = ctk.CTkLabel(self.header_frame, text=self.t.get("title", "⚡ RaidItBetter"), font=ctk.CTkFont(size=20, weight="bold"))
         self.title_label.pack(side="left")
 
-        # Update Button
+        # Update Button (ganz rechts außen)
         self.btn_update = ctk.CTkButton(
             self.header_frame, text="🔄", width=32, height=32, 
             fg_color=BTN_GRAY, hover_color=("gray75", "gray35"), 
             font=ctk.CTkFont(size=14), command=self.on_update_click
         )
-        self.btn_update.pack(side="right", padx=(0, 5))
-        self.btn_update.bind("<Enter>", lambda e: self.label_status.configure(text=self.t.get("tooltip_update", "Check for updates")))
-        self.btn_update.bind("<Leave>", lambda e: self.label_status.configure(text=self.t.get("ready")))
+        self.btn_update.pack(side="right", padx=(0, 0))
+        self.btn_update.bind("<Enter>", lambda e: self.label_status.configure(text=self.t.get("tooltip_update", "Check for updates"), text_color=("gray30", "gray70")))
+        self.btn_update.bind("<Leave>", lambda e: self.label_status.configure(text=self.t.get("ready"), text_color=("gray30", "gray70")))
         
         # About Button
         self.btn_about = ctk.CTkButton(
             self.header_frame, text="ℹ️", width=32, height=32,
             fg_color=BTN_GRAY, hover_color=BTN_GRAY_HOVER,
-            font=ctk.CTkFont(size=14), command=self.open_about_window
+            font=ctk.CTkFont(size=14), command=self.toggle_about
         )
         self.btn_about.pack(side="right", padx=(0, 5))
-        self.btn_about.bind("<Enter>", lambda e: self.label_status.configure(text=self.t.get("tooltip_about", "About")))
-        self.btn_about.bind("<Leave>", lambda e: self.label_status.configure(text=self.t.get("ready")))
+        self.btn_about.bind("<Enter>", lambda e: self.label_status.configure(text=self.t.get("tooltip_about", "About"), text_color=("gray30", "gray70")))
+        self.btn_about.bind("<Leave>", lambda e: self.label_status.configure(text=self.t.get("ready"), text_color=("gray30", "gray70")))
         
         # Settings Button
         self.btn_settings = ctk.CTkButton(
@@ -106,8 +123,8 @@ class TwitchRaidApp(ctk.CTk):
             font=ctk.CTkFont(size=14), command=self.toggle_settings
         )
         self.btn_settings.pack(side="right", padx=(0, 5))
-        self.btn_settings.bind("<Enter>", lambda e: self.label_status.configure(text=self.t.get("tooltip_settings", "Settings")))
-        self.btn_settings.bind("<Leave>", lambda e: self.label_status.configure(text=self.t.get("ready")))
+        self.btn_settings.bind("<Enter>", lambda e: self.label_status.configure(text=self.t.get("tooltip_settings", "Settings"), text_color=("gray30", "gray70")))
+        self.btn_settings.bind("<Leave>", lambda e: self.label_status.configure(text=self.t.get("ready"), text_color=("gray30", "gray70")))
         
         # Raid History Button
         self.btn_history = ctk.CTkButton(
@@ -116,8 +133,8 @@ class TwitchRaidApp(ctk.CTk):
             font=ctk.CTkFont(size=14), command=self.open_history_window
         )
         self.btn_history.pack(side="right", padx=(0, 5))
-        self.btn_history.bind("<Enter>", lambda e: self.label_status.configure(text=self.t.get("tooltip_history", "History")))
-        self.btn_history.bind("<Leave>", lambda e: self.label_status.configure(text=self.t.get("ready")))
+        self.btn_history.bind("<Enter>", lambda e: self.label_status.configure(text=self.t.get("tooltip_history", "History"), text_color=("gray30", "gray70")))
+        self.btn_history.bind("<Leave>", lambda e: self.label_status.configure(text=self.t.get("ready"), text_color=("gray30", "gray70")))
 
         # Login Button
         login_text = self.t.get("logout") if self.twitch.access_token else self.t.get("login")
@@ -151,7 +168,7 @@ class TwitchRaidApp(ctk.CTk):
         )
         self.switch_online_filter.pack(side="right")
 
-        self.favorites_frame = ctk.CTkScrollableFrame(self.main_content_frame, width=460, height=290, fg_color=BG_SCROLL)
+        self.favorites_frame = ctk.CTkScrollableFrame(self.main_content_frame, width=460, height=270, fg_color=BG_SCROLL)
         self.favorites_frame.pack(pady=10, padx=20)
 
         # Raid Button
@@ -159,10 +176,6 @@ class TwitchRaidApp(ctk.CTk):
         self.raid_thread = None
         self.btn_raid = ctk.CTkButton(self.main_content_frame, text=self.t.get("start_raid"), fg_color=COLOR_RAID, hover_color=COLOR_RAID_HOVER, width=460, height=40, font=ctk.CTkFont(size=14, weight="bold"), command=self.on_raid_click)
         self.btn_raid.pack(pady=5)
-
-        # Status Label
-        self.label_status = ctk.CTkLabel(self.main_content_frame, text=self.t.get("ready"), text_color="gray", font=ctk.CTkFont(size=12))
-        self.label_status.pack(pady=(0, 10))
 
         self.refresh_favorites_list()
         threading.Thread(target=self.check_app_updates_background, daemon=True).start()
@@ -221,20 +234,48 @@ class TwitchRaidApp(ctk.CTk):
             self.refresh_favorites_list()
             
     def toggle_settings(self):
+        if getattr(self, "about_open", False):
+            self.toggle_about()
+            
+        current_x = self.winfo_x()
+        current_y = self.winfo_y()
+        
         if getattr(self, "settings_open", False):
             if hasattr(self, "settings_frame") and self.settings_frame:
                 self.settings_frame.destroy()
                 del self.settings_frame
-            self.geometry("520x620")
+            self.geometry(f"520x620+{current_x}+{current_y}")
             self.settings_open = False
         else:
-            self.geometry("920x620")
-            self.setup_settings_panel()
+            self.geometry(f"920x620+{current_x}+{current_y}")
+            self.update_idletasks()
+            self.settings_frame = SettingsPanel(self.container_frame, self)
+            self.settings_frame.pack(side="right", fill="both", expand=True)
             self.settings_open = True
+            
+    def toggle_about(self):
+        if getattr(self, "settings_open", False):
+            self.toggle_settings()
+            
+        current_x = self.winfo_x()
+        current_y = self.winfo_y()
+        
+        if getattr(self, "about_open", False):
+            if hasattr(self, "about_frame") and self.about_frame:
+                self.about_frame.destroy()
+                del self.about_frame
+            self.geometry(f"520x620+{current_x}+{current_y}")
+            self.about_open = False
+        else:
+            self.geometry(f"920x620+{current_x}+{current_y}")
+            self.update_idletasks()
+            self.about_frame = Aboutwindow(self.container_frame, self)
+            self.about_frame.pack(side="right", fill="both", expand=True)
+            self.about_open = True
 
     def setup_settings_panel(self):
-        self.settings_frame = SettingsPanel(self, self)
-        self.settings_frame.pack(side="right", fill="both", expand=False)
+        self.settings_frame = SettingsPanel(self.container_frame, self)
+        self.settings_frame.pack(side="right", fill="both", expand=True)
 
     def on_settings_language_change(self, choice):
         lang_code = "de" if choice == "Deutsch" else "en"
@@ -350,10 +391,12 @@ class TwitchRaidApp(ctk.CTk):
             return
 
         if add_favorite_db(streamer_name):
+            self.show_status(f"{streamer_name} added to favorites!", message_type="success")
             threading.Thread(target=self.refresh_favorites_list, daemon=True).start()
             msg = self.t.get("fav_added").format(name=streamer_name)
             self.label_status.configure(text=msg, text_color="green")
         else:
+            self.show_status(f"{streamer_name} is already in favorites.", message_type="info")
             self.label_status.configure(text=self.t.get("fav_exists"), text_color="blue")
 
     def remove_favorite(self, name):
@@ -396,7 +439,7 @@ class TwitchRaidApp(ctk.CTk):
 
             self.is_raiding = True
             self.raid_cancelled = False
-            self.btn_raid.configure(text="Abort Raid", fg_color="#333333", hover_color="#444444")
+            self.btn_raid.configure(text="Raid abbrechen", fg_color="#333333", hover_color="#444444")
 
             searching_msg = self.t.get("searching").format(name=streamer_name)
             self.label_status.configure(text=searching_msg, text_color="blue")
@@ -404,48 +447,54 @@ class TwitchRaidApp(ctk.CTk):
             def run():
                 try:
                     success, message = self.twitch.execute_raid(streamer_name)
-                    if not success:
-                        if self.raid_cancelled:
-                            return
-                        self.after(0, lambda: self.reset_raid_button_state())
-                        self.after(0, lambda: self.label_status.configure(text=message, text_color="red"))
+                    
+                    if self.raid_cancelled:
                         return
 
-                    add_raid_history_db(streamer_name, viewer_count=0, status="Success")
-                    self.after(0, lambda: self.refresh_favorites_list())
-                    self.after(0, lambda: self.label_status.configure(text=message, text_color="green"))
+                    if success:
+                        add_raid_history_db(streamer_name, viewer_count=0, status="Success")
+                        self.after(0, lambda: self.refresh_favorites_list())
+                        self.after(0, lambda: self.show_status(message, message_type="success"))
+                        self.after(0, lambda: self.label_status.configure(text=message, text_color="green"))
+                    else:
+                        self.after(0, lambda: self.show_status(message, message_type="error"))
+                        self.after(0, lambda: self.label_status.configure(text=message, text_color="red"))
+                        self.after(0, lambda: self.reset_raid_button_state())
                     
                 except Exception as ex:
-                    self.after(0, lambda: self.label_status.configure(text=f"Raid-Fehler: {ex}", text_color="red"))
-                    self.after(0, lambda: self.reset_raid_button_state())
-                self.raid_thread = threading.Thread(target=run, daemon=True)
-                self.raid_thread.start()
-
-                def auto_reset():
-                    if self.is_raiding and not self.raid_cancelled:
-                        self.is_raiding = False
-                        self.reset_raid_button_state()
-                        self.label_status.configure(text="⏱️ Raid-Time expired.", text_color="gray")
-
-                self.after(90000, auto_reset)
+                    if not self.raid_cancelled:
+                        self.after(0, lambda: self.label_status.configure(text=f"Raid-Fehler: {ex}", text_color="red"))
+                        self.after(0, lambda: self.reset_raid_button_state())
 
             self.raid_thread = threading.Thread(target=run, daemon=True)
             self.raid_thread.start()
+
+            def auto_reset():
+                if self.is_raiding and not self.raid_cancelled:
+                    self.is_raiding = False
+                    self.reset_raid_button_state()
+                    self.label_status.configure(text="⏱️ Raid-Time expired.", text_color="gray")
+
+            self.after(90000, auto_reset)
         else:
             self.raid_cancelled = True
             self.is_raiding = False
+            self.btn_raid.configure(text=self.t.get("start_raid"), fg_color=COLOR_RAID, hover_color=COLOR_RAID_HOVER)
+            self.label_status.configure(text="Raid wird abgebrochen...", text_color="orange")
             
             def cancel_worker():
-                success, message = self.twitch.cancel_raid()
-                color = "green" if success else "orange"
-                self.after(0, lambda: self.label_status.configure(text=message, text_color=color))
+                try:
+                    success, message = self.twitch.cancel_raid()
+                    color = "green" if success else "orange"
+                    self.after(0, lambda: self.label_status.configure(text=message, text_color=color))
+                except Exception as e:
+                    self.after(0, lambda: self.label_status.configure(text=f"Fehler beim Abbrechen: {e}", text_color="red"))
                 self.after(0, lambda: self.reset_raid_button_state())
-
             threading.Thread(target=cancel_worker, daemon=True).start()
-
+            
     def reset_raid_button_state(self):
         self.is_raiding = False
-        self.btn_raid.configure(text=self.t.get("start_raid"), fg_color="#e91916", hover_color="#c81310")
+        self.btn_raid.configure(text=self.t.get("start_raid"), fg_color=COLOR_RAID, hover_color=COLOR_RAID_HOVER)
 
     def report_callback_exception(self, exc, val, tb):
         if "invalid command name" in str(val):
@@ -459,8 +508,24 @@ class TwitchRaidApp(ctk.CTk):
             return
         self.history_win_ref = RaidHistoryWindow(self, self.t)
         
-    def open_about_window(self):
-        if hasattr(self, "about_win_ref") and self.about_win_ref and self.about_win_ref.winfo_exists():
-            self.about_win_ref.focus()
-            return
-        self.about_win_ref = Aboutwindow(self, self.t)
+    def show_status(self, message, message_type="info", clear_after=6000):
+        colors = {
+            "success": ("#27ae60", "#2ecc71"),
+            "error": ("#c0392b", "#e74c3c"),  
+            "info": ("gray30", "gray70")       
+        }
+        text_color = colors.get(message_type, colors["info"])
+        
+        self.label_status.configure(text=message, text_color=text_color)
+        
+        if hasattr(self, "_status_timer") and self._status_timer:
+            try:
+                self.after_cancel(self._status_timer)
+            except Exception:
+                pass
+                
+        if clear_after > 0:
+            self._status_timer = self.after(
+                clear_after, 
+                lambda: self.label_status.configure(text=self.t.get("ready"), text_color=("gray30", "gray70"))
+            )

@@ -1,59 +1,39 @@
-import webbrowser
 import customtkinter as ctk
-from ui.styles import COLOR_PRIMARY, COLOR_PRIMARY_HOVER, BG_CARD, get_font_title, get_font_bold
 from core.settings import APP_VERSION
-from ui.settings_window import SettingsPanel
 
-class Aboutwindow(ctk.CTkToplevel):
-    def __init__(self, parent, translations):
-        super().__init__(parent)
-        self.t = translations
-        self.title("RaidItBetter - About")
+class Aboutwindow(ctk.CTkFrame):
+    def __init__(self, parent, app_controller):
+        super().__init__(parent, fg_color=("gray95", "gray15"), corner_radius=0, width=400)
+        self.app = app_controller
+        self.t = app_controller.t
+        self.pack_propagate(False)
         
-        width = 380
-        height = 360
-        self.resizable(False, False)
+        # Header
+        self.lbl_header = ctk.CTkLabel(self, text=self.t.get("about_title", "ℹ️ Über RaidItBetter"), font=ctk.CTkFont(size=16, weight="bold"))
+        self.lbl_header.pack(pady=20, padx=20, anchor="w")
         
-        self.transient(parent)
-        self.grab_set()
-        
-        self.update_idletasks()
-        parent_x = parent.winfo_x()
-        parent_y = parent.winfo_y()
-        parent_w = parent.winfo_width()
-        parent_h = parent.winfo_height()
-        
-        x = parent_x + (parent_w // 2) - (width // 2)
-        y = parent_y + (parent_h // 2) - (height // 2)
-        self.geometry(f"{width}x{height}+{x}+{y}")
-        
-        content_frame = ctk.CTkFrame(self, fg_color="transparent")
-        content_frame.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        lbl_version = ctk.CTkLabel(content_frame, text=f"{APP_VERSION}", font=get_font_bold(12), text_color="gray")
-        lbl_version.pack(pady=(0, 15))
+        # Info Text
+        self.lbl_version = ctk.CTkLabel(self, text=f"Version: {APP_VERSION}", font=ctk.CTkFont(size=13, weight="bold"))
+        self.lbl_version.pack(padx=20, anchor="w", pady=(10, 5))
         
         desc_text = (
             "Ein simples Tool zum Verwalten von Raids \n\n"
             "Dev: Paddi0010"
         )
         
-        lbl_desc = ctk.CTkLabel(content_frame, text=desc_text, font=ctk.CTkFont(size=12), justify="center", wraplength=320)
-        lbl_desc.pack(pady=(0, 20))
+        self.lbl_desc = ctk.CTkLabel(self, text=desc_text, font=ctk.CTkFont(size=12), justify="left", wraplength=360)
+        self.lbl_desc.pack(padx=20, anchor="w", pady=(5, 20))
         
-        btn_github = ctk.CTkButton(
-            content_frame, text="🌐 GitHub Repository", 
-            fg_color=COLOR_PRIMARY, hover_color=COLOR_PRIMARY_HOVER,
-            font=get_font_bold(12), height=35,
-            command=lambda: webbrowser.open("https://github.com/paddi0010/RaidItBetter")
-        )
-        btn_github.pack(fill="x", pady=(0, 10))
-            
-        btn_close = ctk.CTkButton(
-            content_frame, text="Schließen",
+        # Close Button
+        self.btn_close = ctk.CTkButton(
+            self, text=self.t.get("close", "Schließen"),
             fg_color=("gray80", "gray30"), hover_color=("gray70", "gray40"),
             text_color=("black", "white"),
-            font=get_font_bold(12), height=32,
-            command=self.destroy
+            command=self.app.toggle_about
         )
-        btn_close.pack(fill="x")
+        self.btn_close.pack(side="bottom", fill="x", padx=20, pady=20)
+        
+    def update_texts(self):
+        self.t = self.app.t
+        self.lbl_header.configure(text=self.t.get("about_title", "ℹ️ Über RaidItBetter"))
+        self.btn_close.configure(text=self.t.get("close", "Schließen"))
