@@ -2,7 +2,7 @@
 
 > ⚠️ **Heads up:** This project is currently in early **alpha**. Core features work, but expect a few rough edges or minor bugs while things are still actively being built.
 
-A small, desktop app built with Python and CustomTkinter to fire off Twitch raids quickly from your desktop—no browser dashboard gymnastics required.
+A small, desktop app built with Python and PySide6 to fire off Twitch raids quickly from your desktop—no browser dashboard gymnastics required.
 
 ## Why this exists
 
@@ -10,9 +10,10 @@ Twitch's native dashboard is clunky when you're trying to wrap up a stream and s
 
 ## What's under the hood
 
-* **GUI:** CustomTkinter for a clean dark-mode interface that doesn't look like it's straight out of 1998.
+* **GUI:** PySide6 (Qt for Python) for a clean, responsive native-feeling dark-mode interface.
 * **Auth:** OAuth2 Authorization Code Flow with PKCE using a local callback server.
-* **Security First:** Access tokens never live in plaintext JSON files; they're stored directly in your OS keychain via `keyring`. Includes CSRF protection (`state`) and basic input regex validation.
+* **Security First:** Access tokens never live in plaintext JSON files; they're stored securely in your OS keychain via `keyring`. Includes CSRF protection (`state`) and input validation.
+* **Features:** Built-in Raid History, Auto-Refresh for online statuses, multi-language support (DE/EN), and an in-app updater.
 
 ## 🚀 Installation & Getting Started
 
