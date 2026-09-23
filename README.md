@@ -11,6 +11,7 @@ Twitch's native dashboard is clunky when you're trying to wrap up a stream and s
 ## What's under the hood
 
 * **GUI:** PySide6 (Qt for Python) for a clean, responsive native-feeling dark-mode interface.
+* <img width="514" height="657" alt="image" src="https://github.com/user-attachments/assets/56fd1db3-b0b5-4bf9-81aa-836115e49002" />
 * **Auth:** OAuth2 Authorization Code Flow with PKCE using a local callback server.
 * **Security First:** Access tokens never live in plaintext JSON files; they're stored securely in your OS keychain via `keyring`. Includes CSRF protection (`state`) and input validation.
 * **Features:** Built-in Raid History, Auto-Refresh for online statuses, multi-language support (DE/EN), and an in-app updater.
