@@ -12,6 +12,7 @@ Twitch's native dashboard is clunky when you're trying to wrap up a stream and s
 
 * **GUI:** PySide6 (Qt for Python) for a clean, responsive native-feeling dark-mode interface.
 <img width="509" height="643" alt="image" src="https://github.com/user-attachments/assets/bd3f77e7-f0ea-4fb7-af72-746462c67821" />
+
 *Not finalized*
 
 * **Auth:** OAuth2 Authorization Code Flow with PKCE using a local callback server.
