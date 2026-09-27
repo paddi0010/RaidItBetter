@@ -1,59 +1,63 @@
-import webbrowser
-import customtkinter as ctk
-from ui.styles import COLOR_PRIMARY, COLOR_PRIMARY_HOVER, BG_CARD, get_font_title, get_font_bold
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel, QPushButton
 from core.settings import APP_VERSION
-from ui.settings_window import SettingsPanel
+from ui.styles.about_window_style import (
+    ABOUT_WINDOW_STYLE, ABOUT_TEXT_STYLE, BTN_ACTION_STYLE
+)
 
-class Aboutwindow(ctk.CTkToplevel):
-    def __init__(self, parent, translations):
+class Aboutwindow(QFrame):
+    def __init__(self, parent, app_controller):
         super().__init__(parent)
-        self.t = translations
-        self.title("RaidItBetter - About")
+        self.app = app_controller
+        self.t = app_controller.t
+        self.setFixedWidth(400)
+        self.setStyleSheet(ABOUT_WINDOW_STYLE)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+
+        # Header als reiner Text (ohne störenden Rahmen oder Hintergrund)
+        self.lbl_header = QLabel(self.t.get("about_title", "ℹ️ Über RaidItBetter"))
+        self.lbl_header.setStyleSheet("""
+            font-size: 16px !important;
+            font-weight: bold !important;
+            color: white !important;
+            background: transparent !important;
+            border: none !important;
+            padding: 0px !important;
+        """)
+        layout.addWidget(self.lbl_header)
+
+        # Info Text
+        self.lbl_version = QLabel(f"{self.t.get('about_version', 'Version')}: {APP_VERSION}")
+        self.lbl_version.setStyleSheet(ABOUT_TEXT_STYLE)
+        layout.addWidget(self.lbl_version)
+
+        # Description
+        desc_text = self.t.get("about_description", "Ein simples Tool zum Verwalten von Raids")
+        full_desc = f"{desc_text}\n\nDev: Paddi0010"
+        self.lbl_desc = QLabel(full_desc)
+        self.lbl_desc.setWordWrap(True)
+        self.lbl_desc.setStyleSheet("font-size: 12px !important; color: #8b949e !important; background: transparent !important; border: none !important;")
+        layout.addWidget(self.lbl_desc)
+
+        layout.addStretch()
+
+        # Close Button
+        self.btn_close = QPushButton(self.t.get("close", "Schließen"))
+        self.btn_close.setFixedHeight(35)
+        self.btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_close.setStyleSheet(BTN_ACTION_STYLE)
+        self.btn_close.clicked.connect(self.app.toggle_about)
+        layout.addWidget(self.btn_close)
+
+    def update_texts(self):
+        self.t = self.app.t
+        self.lbl_header.setText(self.t.get("about_title", "ℹ️ Über RaidItBetter"))
+        self.lbl_version.setText(f"{self.t.get('about_version', 'Version')}: {APP_VERSION}")
         
-        width = 380
-        height = 360
-        self.resizable(False, False)
+        desc_text = self.t.get("about_description", "Ein simples Tool zum Verwalten von Raids")
+        self.lbl_desc.setText(f"{desc_text}\n\nDev: Paddi0010")
         
-        self.transient(parent)
-        self.grab_set()
-        
-        self.update_idletasks()
-        parent_x = parent.winfo_x()
-        parent_y = parent.winfo_y()
-        parent_w = parent.winfo_width()
-        parent_h = parent.winfo_height()
-        
-        x = parent_x + (parent_w // 2) - (width // 2)
-        y = parent_y + (parent_h // 2) - (height // 2)
-        self.geometry(f"{width}x{height}+{x}+{y}")
-        
-        content_frame = ctk.CTkFrame(self, fg_color="transparent")
-        content_frame.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        lbl_version = ctk.CTkLabel(content_frame, text=f"{APP_VERSION}", font=get_font_bold(12), text_color="gray")
-        lbl_version.pack(pady=(0, 15))
-        
-        desc_text = (
-            "Ein simples Tool zum Verwalten von Raids \n\n"
-            "Dev: Paddi0010"
-        )
-        
-        lbl_desc = ctk.CTkLabel(content_frame, text=desc_text, font=ctk.CTkFont(size=12), justify="center", wraplength=320)
-        lbl_desc.pack(pady=(0, 20))
-        
-        btn_github = ctk.CTkButton(
-            content_frame, text="🌐 GitHub Repository", 
-            fg_color=COLOR_PRIMARY, hover_color=COLOR_PRIMARY_HOVER,
-            font=get_font_bold(12), height=35,
-            command=lambda: webbrowser.open("https://github.com/paddi0010/RaidItBetter")
-        )
-        btn_github.pack(fill="x", pady=(0, 10))
-            
-        btn_close = ctk.CTkButton(
-            content_frame, text="Schließen",
-            fg_color=("gray80", "gray30"), hover_color=("gray70", "gray40"),
-            text_color=("black", "white"),
-            font=get_font_bold(12), height=32,
-            command=self.destroy
-        )
-        btn_close.pack(fill="x")
+        self.btn_close.setText(self.t.get("close", "Schließen"))

@@ -1,39 +1,24 @@
-v0.5.1-alpha
+v0.6.1-alpha
 
-- Vollständige UI-Modularisierung & Code-Cleanup
- - Auslagerung der Favoriten-Einträge in eine eigene wiederverwendbare
-   StreamerCard-Komponente (ui/components.py)
- - Das Hauptfenster (ui/main_window.py) wurde massiv verschmälert
-   und von redundantem UI-Code befreit.
- - Das Einstellungsfenster wurde als dediziertes Panel (ui/settings_window.py)
-   integriert und dynamisch an das Übersetzungssystem angebunden.
- - Legacy-Dateien und veraltete Buttons (z.B. reduntante Sprach-Buttons auf der Hauptseite)
-   wurden restlos entfernt.
+1. Modularisiertes Twitch-API & Auth System
+  - Automatisches abfangen von Login Fehlern.
 
+2. Raid Funktionalität & Live Steuerung
+  - Implementierung des eigentliches Raid Prozesses (zielsuche,
+  viewer zahlen abrufen, Online status filtern.)
+  - Das abbrechen eines laufenden Raids über den neuen API Flow
+    funktioniert jetzt fehlerfrei, ohne dass die Anwendung einfriert.
 
-- Projektstruktur
- - Die Twitch-Api-Logik wurde sauber in einen eigenen api/-Ordner ausgelagert
-   (api/twitch_api.py)
- - Einstellungen und Konfigurationslogik wurden zentralisiert
-   (core/settings.py)
+3. Datenbank & Raid history
+  - Anbindung einer lokalen Datenbank um vergangene Raids
+   chronologisch abzuspeichern.
+  - Erstellung des Hostory Fensters inklusive der Möglichkeit, den Verlauf
+    über einen Clear Button direkt aus der UI heraus zu leeren.
+  
+4. Vollständiges UI & Style Refactoring 
+  - Aufteilung des gesamten Programms in ein sauberes Layout: Main Window,
+    Settings_window, Hostiry und About window.
+  - Jedes Fenster hat jetzt eine eigene dedizierte Style-Datei 
+    im ui/styles/-Ordner bekommen.
 
-
-- Internationalisierung
- - Das dynamische JSON-basierte sprachsystem (locales/de.json)
-   und (locales/en.json) greift nun übergreifend - auch das Einstellungs-Panel
-   und alle Tooltips wechseln die Sprache nun in echtzeit.
-
-
-- Sicherheit
- - Migration der Konfigurationsdatei (settings.json) und der SQLite
-   Datenbank(favorites.db) vom unsicheren Desktop Verzeichnis in den
-   geschützten System Pfad (AppData/Roaming/RaidItBetter)
- - Schutz sensibler Token Daten durch systemeigene Verschlüsselung via keyring.
-
-
-- Stabilität & Bugfixes
- - Korrektur vom Import- und Dateipfaden nach der neuen Ordnerstruktur 
-   (z.B. für die Übersetzungsdateien)
- - Behebung von AttributeError-Fehlern bei UI-Aktualisierungen.
- - Solide Fehlerbehandlung für Threads, Token-Validierung und Event-Callbacks
- 
+    ACHTUNG: Ich empfehle euch die neuste Python version zu nutzen!
