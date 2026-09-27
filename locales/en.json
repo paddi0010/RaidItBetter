@@ -35,5 +35,11 @@
   "tooltip_history": "View raid history",
   "settings_title": "⚙️ Settings",
   "settings_language": "Language / Sprache:",
-  "close": "Close"
+  "close": "Close",
+  "about_title": "ℹ️ About RaidItBetter",
+  "about_description": "A modern tool for Twitch streamers to efficiently manage and execute raids.",
+  "about_version": "Version",
+  "sort_standard": "Standard",
+"sort_viewers_high": "Viewers: High --> Low",
+"sort_viewers_low": "Viewers: Low --> High"
 }

@@ -1,71 +1,91 @@
-import customtkinter as ctk
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QVBoxLayout, QHBoxLayout, QPushButton, 
+    QLabel, QScrollArea, QWidget, QFrame
+)
 from services.database import get_raid_history_db, clear_raid_history_db
-from ui.styles import BG_CARD, BG_SCROLL, COLOR_DANGER, COLOR_DANGER_HOVER, get_font_title, get_font_bold
+from ui.styles.history_style import (
+    HISTORY_WINDOW_STYLE, HISTORY_SCROLL_AREA_STYLE, HISTORY_ITEM_STYLE,
+    HISTORY_TITLE_STYLE, BTN_HISTORY_ACTION
+)
 
-class RaidHistoryWindow(ctk.CTkToplevel):
+class RaidHistoryWindow(QFrame):
     def __init__(self, parent, translations):
         super().__init__(parent)
         self.t = translations
-        self.title("RaidItBetter - Raid History")
-        
-        width = 400
-        height = 450
-        self.resizable(False, False)
+        self.setStyleSheet(HISTORY_WINDOW_STYLE)
 
-        self.transient(parent)
-        self.grab_set()
+        # main Layout
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(10)
 
-        self.update_idletasks()
-        parent_x = parent.winfo_x()
-        parent_y = parent.winfo_y()
-        parent_w = parent.winfo_width()
-        parent_h = parent.winfo_height()
+        # Top Frame (Titel + Clear Button)
+        top_frame = QWidget()
+        top_layout = QHBoxLayout(top_frame)
+        top_layout.setContentsMargins(0, 0, 0, 0)
 
-        x = parent_x + (parent_w // 2) - (width // 2)
-        y = parent_y + (parent_h // 2) - (height // 2)
-        self.geometry(f"{width}x{height}+{x}+{y}")
+        lbl_title = QLabel(self.t.get("history_title", "📜 Letzte Raids"))
+        lbl_title.setStyleSheet(HISTORY_TITLE_STYLE)
+        top_layout.addWidget(lbl_title)
 
-        top_frame = ctk.CTkFrame(self, fg_color="transparent")
-        top_frame.pack(pady=(15, 10), fill="x", padx=20)
+        btn_clear = QPushButton(self.t.get("history_clear", "🗑️ Clear"))
+        btn_clear.setFixedSize(75, 28)
+        btn_clear.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_clear.setStyleSheet(BTN_HISTORY_ACTION)
+        btn_clear.clicked.connect(self.clear_history)
+        top_layout.addWidget(btn_clear)
 
-        lbl_title = ctk.CTkLabel(top_frame, text=self.t.get("history_title", "📜 Letzte Raids"), font=ctk.CTkFont(size=16, weight="bold"))
-        lbl_title.pack(side="left")
+        main_layout.addWidget(top_frame)
 
-        btn_clear = ctk.CTkButton(
-            top_frame, text=self.t.get("history_clear", "🗑️ Clear"), width=75, height=28,
-            fg_color="#d9534f", hover_color="#c9302c",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            command=self.clear_history
-        )
-        btn_clear.pack(side="right")
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet(HISTORY_SCROLL_AREA_STYLE)
 
-        self.scroll_frame = ctk.CTkScrollableFrame(self, width=360, height=360, fg_color=("gray92", "gray17"))
-        self.scroll_frame.pack(pady=5, padx=20)
+        self.scroll_content = QWidget()
+        self.scroll_layout = QVBoxLayout(self.scroll_content)
+        self.scroll_layout.setContentsMargins(10, 10, 10, 10)
+        self.scroll_layout.setSpacing(8)
+        self.scroll_area.setWidget(self.scroll_content)
+
+        main_layout.addWidget(self.scroll_area)
 
         self.load_history_data()
 
     def load_history_data(self):
-        for w in self.scroll_frame.winfo_children():
-            w.destroy()
+        for i in reversed(range(self.scroll_layout.count())): 
+            widget = self.scroll_layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
 
         history_data = get_raid_history_db()
         if not history_data:
-            lbl_empty = ctk.CTkLabel(self.scroll_frame, text=self.t.get("history_empty", "Noch keine Raids aufgezeichnet."), text_color="gray")
-            lbl_empty.pack(pady=20)
+            lbl_empty = QLabel(self.t.get("history_empty", "Noch keine Raids aufgezeichnet."))
+            lbl_empty.setStyleSheet(HISTORY_ITEM_STYLE)
+            lbl_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.scroll_layout.addWidget(lbl_empty)
             return
 
         for row in history_data:
             timestamp, target, viewers, status = row
-            card = ctk.CTkFrame(self.scroll_frame, fg_color=("white", "gray22"), corner_radius=6)
-            card.pack(pady=4, fill="x", padx=5)
+            
+            card = QFrame()
+            card.setStyleSheet(HISTORY_WINDOW_STYLE)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(10, 10, 10, 10)
 
             t_label = self.t.get("history_target", "🎯 Ziel")
             time_label = self.t.get("history_time", "🕒 Zeit")
             status_label = self.t.get("history_status", "📊 Status")
 
             text_content = f"{t_label}: {target}\n{time_label}: {timestamp}\n{status_label}: {status}"
-            lbl_item = ctk.CTkLabel(card, text=text_content, font=ctk.CTkFont(size=11), justify="left", anchor="w")
-            lbl_item.pack(pady=8, padx=10, fill="x")
+            lbl_item = QLabel(text_content)
+            lbl_item.setStyleSheet(HISTORY_ITEM_STYLE)
+            card_layout.addWidget(lbl_item)
+
+            self.scroll_layout.addWidget(card)
+        
+        self.scroll_layout.addStretch()
 
     def clear_history(self):
         clear_raid_history_db()

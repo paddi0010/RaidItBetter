@@ -35,5 +35,11 @@
   "tooltip_history": "Raid-Verlauf anzeigen",
   "settings_title": "⚙️ Einstellungen",
   "settings_language": "Sprache / Language:",
-  "close": "Schließen"
+  "close": "Schließen",
+  "about_title": "ℹ️ Über RaidItBetter",
+  "about_description": "Ein modernes Tool für Twitch-Streamer zur effizienten Verwaltung und Durchführung von Raids.",
+  "about_version": "Version",
+  "sort_standard": "Standard",
+"sort_viewers_high": "Viewer: Hoch --> Niedrig",
+"sort_viewers_low": "Viewer: Niedrig --> Hoch"
 }

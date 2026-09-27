@@ -2,7 +2,7 @@ import os
 import sys
 import json
 
-APP_VERSION = "v0.5.1-alpha"
+APP_VERSION = "v0.6.1-alpha"
 
 def get_base_path():
     if getattr(sys, 'frozen', False):

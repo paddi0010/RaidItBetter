@@ -1,44 +1,302 @@
 import os
 import re
 import threading
-import customtkinter as ctk
-import tkinter as tk
-from PIL import Image, ImageTk
-from services.database import get_favorites_db, add_favorite_db, remove_favorite_db, add_raid_history_db, get_last_raid_for_channel
-from core.settings import save_language, load_translations
+import sys
+import time
+from PySide6.QtCore import Q_ARG, QMetaObject, QRect, QSize, Qt, QTimer, Signal, Slot, QByteArray, QPoint, QPropertyAnimation, QEasingCurve, QMimeData
+from PySide6.QtGui import QDrag, QIcon, QPixmap, QPainter, QPainterPath
+from PySide6.QtWidgets import (
+    QApplication, QDialog, QListWidget, QListWidgetItem, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QLineEdit, QScrollArea, QFrame, QCheckBox, QComboBox, QMenu, QStackedWidget, QGraphicsOpacityEffect
+)
+from services.database import (
+    get_favorites_db, add_favorite_db, remove_favorite_db, 
+    add_raid_history_db, get_last_raid_for_channel, update_favorites_order
+)
+from core.settings import save_language, load_translations, APP_VERSION
 from api.twitch_api import TwitchClient
-from ui.components import StreamerCard
 from ui.settings_window import SettingsPanel
-from services.updater import check_for_updates, check_update_status
-from ui.styles import ( COLOR_PRIMARY, COLOR_PRIMARY_HOVER, COLOR_DANGER, COLOR_DANGER_HOVER, COLOR_RAID, COLOR_RAID_HOVER, BTN_GREEN, BTN_ORANGE, BTN_GRAY, BTN_GRAY_HOVER, BG_CARD, BG_SCROLL )
 from ui.history_window import RaidHistoryWindow
 from ui.about_window import Aboutwindow
-from core.settings import APP_VERSION
+from ui.login_window import LoginPanel
+from services.updater import check_for_updates, check_update_status
 
-class LanguageSelectDialog(ctk.CTk):
-    def __init__(self, lang=None):
-        super().__init__()
-        self.title("RaidItBetter - Sprachauswahl / Language")
-        self.geometry("520x620")
-        self.resizable(False, False)
+from ui.styles.login_window_style import BTN_LOGIN
+from ui.styles.main_window_style import (
+    MAIN_WINDOW_STYLE, STREAMER_CARD_STYLE, STREAMER_CARD_DELETE_BTN,
+    HEADER_BTN_STYLE, INPUT_CONTAINER_STYLE, ENTRY_STREAMER_STYLE,
+    BTN_ADD_FAV_STYLE, SCROLL_AREA_STYLE, BTN_RAID_START, BTN_RAID_CANCEL,
+    STATUSBAR_STYLE, PROFILE_MENU, PROGRESS_BAR
+)
 
-        self.label = ctk.CTkLabel(self, text="Bitte Sprache wählen\nPlease select language", font=ctk.CTkFont(size=14, weight="bold"))
-        self.label.pack(pady=(25, 15))
+class LoadingPanel(QWidget):
+    def __init__(self, parent=None, translations=None):
+        super().__init__(parent)
+        self.t = translations or {}
+        
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(15)
+        
+        self.setStyleSheet("background-color: #0d1117;")
+        
+        lbl_logo = QLabel("⚡")
+        lbl_logo.setStyleSheet("font-size: 40px; background: transparent;")
+        lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(lbl_logo)
+        
+        lbl_title = QLabel(self.t.get("loading_title", "RaidItBetter"))
+        lbl_title.setStyleSheet("font-size: 20px; font-weight: bold; color: white; background: transparent;")
+        lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(lbl_title)
+        
+        lbl_sub = QLabel(self.t.get("loading_sub", "Daten werden geladen..."))
+        lbl_sub.setStyleSheet("font-size: 13px; color: #8b949e; background: transparent;")
+        lbl_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(lbl_sub)
 
-        self.btn_de = ctk.CTkButton(self, text="🇩🇪 Deutsch", fg_color=BTN_ORANGE, hover_color=BTN_GREEN, width=220, height=40, command=lambda: self.select("de"))
-        self.btn_de.pack(pady=5)
 
-        self.btn_en = ctk.CTkButton(self, text="🇬🇧 English", fg_color="#333333", hover_color="#444444", width=220, height=40, command=lambda: self.select("en"))
-        self.btn_en.pack(pady=5)
+class LoginPanel(QFrame):
+    def __init__(self, parent, main_app):
+        super().__init__(parent)
+        self.main_app = main_app
+        self.setStyleSheet("background-color: #0d1117;")
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(20)
+        
+        layout.addStretch()
+        
+        title = QLabel("Twitch Login")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: white; background: transparent;")
+        layout.addWidget(title)
+        
+        lang = getattr(self.main_app, "lang", "de")
+        if lang == "en":
+            desc_text = "To execute raids and manage your favorites efficiently, logging in with your Twitch account is required."
+            btn_text = "Log in with Twitch 🚀"
+        else:
+            desc_text = "Um Raids auszuführen und deine Favoriten optimal zu verwalten, ist eine Anmeldung mit deinem Twitch-Account erforderlich."
+            btn_text = "Mit Twitch anmelden 🚀"
 
-    def select(self, lang):
-        save_language(lang)
-        self.destroy()
+        desc = QLabel(desc_text)
+        desc.setWordWrap(True)
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc.setStyleSheet("font-size: 14px; color: #8b949e; background: transparent;")
+        layout.addWidget(desc)
+        
+        layout.addSpacing(20)
+        
+        btn_login = QPushButton(btn_text)
+        btn_login.setFixedHeight(50)
+        btn_login.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_login.setStyleSheet(BTN_LOGIN)
+        btn_login.clicked.connect(self.main_app.handle_auth_click)
+        layout.addWidget(btn_login)
+        
+        layout.addStretch()
 
-class TwitchRaidApp(ctk.CTk):
+
+class LanguagePanel(QWidget):
+    def __init__(self, parent=None, on_next_callback=None):
+        super().__init__(parent)
+        self.on_next_callback = on_next_callback
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(20)
+
+        lbl_title = QLabel("⚡ Willkommen bei RaidItBetter")
+        lbl_title.setStyleSheet("font-size: 22px; font-weight: bold; color: white; background: transparent;")
+        lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(lbl_title)
+
+        lbl_sub = QLabel("Bitte wähle deine bevorzugte Sprache aus:\nPlease select your language:")
+        lbl_sub.setStyleSheet("font-size: 13px; color: #8b949e; background: transparent;")
+        lbl_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(lbl_sub)
+
+        self.combo_lang = QComboBox()
+        self.combo_lang.setFixedWidth(220)
+        self.combo_lang.setFixedHeight(35)
+        self.combo_lang.setStyleSheet("color: #c9d1d9; background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 4px 10px; font-size: 13px;")
+        self.combo_lang.addItem("🇩🇪 Deutsch", "de")
+        self.combo_lang.addItem("🇬🇧 English", "en")
+        layout.addWidget(self.combo_lang, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        btn_next = QPushButton("Weiter ➔")
+        btn_next.setFixedWidth(220)
+        btn_next.setFixedHeight(38)
+        btn_next.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_next.setStyleSheet("""
+            QPushButton {
+                background-color: #238636;
+                color: white;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 13px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #2ea043;
+            }
+        """)
+        btn_next.clicked.connect(self.on_next_click)
+        layout.addWidget(btn_next, alignment=Qt.AlignmentFlag.AlignCenter)
+
+    def on_next_click(self):
+        selected_lang = self.combo_lang.currentData()
+        if self.on_next_callback:
+            self.on_next_callback(selected_lang)
+
+class FavoritesListWidget(QListWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(False)
+
+
+class StreamerCard(QFrame):
+    def __init__(self, parent, data, is_selected, on_click, on_delete, on_move_up, on_move_down, translations, last_raid_time, show_arrows=True):
+        super().__init__(parent)
+        self.on_click_callback = on_click
+        self.streamer_name = data["name"]
+
+        border_color = "#9146FF" if is_selected else "#21262d"
+        bg_color = "#161b22" if is_selected else "#111418"
+       
+        self.setStyleSheet(STREAMER_CARD_STYLE.format(bg_color=bg_color, border_color=border_color))
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setMinimumHeight(85)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 10, 12, 10)
+        layout.setSpacing(10)
+
+        if show_arrows:
+            arrow_layout = QVBoxLayout()
+            arrow_layout.setSpacing(2)
+            arrow_layout.setContentsMargins(0, 0, 0, 0)
+            
+            arrow_btn_style = """
+                QPushButton {
+                    background-color: #21262d;
+                    color: #8b949e;
+                    border: 1px solid #30363d;
+                    border-radius: 3px;
+                    font-size: 10px;
+                }
+                QPushButton:hover {
+                    background-color: #30363d;
+                    color: white;
+                    border-color: #8b949e;
+                }
+            """
+            
+            btn_up = QPushButton("▲")
+            btn_up.setFixedSize(22, 22)
+            btn_up.setStyleSheet(arrow_btn_style)
+            btn_up.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_up.clicked.connect(lambda: on_move_up(self.streamer_name))
+            
+            btn_down = QPushButton("▼")
+            btn_down.setFixedSize(22, 22)
+            btn_down.setStyleSheet(arrow_btn_style)
+            btn_down.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_down.clicked.connect(lambda: on_move_down(self.streamer_name))
+            
+            arrow_layout.addWidget(btn_up)
+            arrow_layout.addWidget(btn_down)
+            layout.addLayout(arrow_layout)
+
+        is_online = data.get("is_online", False)
+        lbl_dot = QLabel("🟢" if is_online else "⚪")
+        lbl_dot.setStyleSheet("font-size: 8px; background: transparent; border: none;")
+        layout.addWidget(lbl_dot, alignment=Qt.AlignmentFlag.AlignTop)
+
+        info_layout = QVBoxLayout()
+        info_layout.setSpacing(3)
+        info_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.lbl_name = QLabel(self.streamer_name)
+        self.lbl_name.setStyleSheet("font-size: 13px; font-weight: bold; color: white; background: transparent; border: none;")
+        info_layout.addWidget(self.lbl_name)
+
+        last_raided_template = translations.get("last_raided", "Letzter Raid: {date}")
+        offline_label_text = translations.get("offline", "Offline")
+
+        if is_online:
+            title_text = data.get("title", "")
+            self.lbl_title = QLabel(title_text)
+            self.lbl_title.setWordWrap(True)
+            self.lbl_title.setStyleSheet("font-size: 11px; color: #8b949e; background: transparent; border: none;")
+            info_layout.addWidget(self.lbl_title)
+            
+            if last_raid_time:
+                formatted_last_raid = last_raided_template.format(date=last_raid_time)
+                self.lbl_last_raid = QLabel(formatted_last_raid)
+                self.lbl_last_raid.setStyleSheet("font-size: 10px; color: #6e7681; background: transparent; border: none;")
+                info_layout.addWidget(self.lbl_last_raid)
+        else:
+            if last_raid_time:
+                offline_text = last_raided_template.format(date=last_raid_time)
+            else:
+                offline_text = offline_label_text
+            
+            self.lbl_offline = QLabel(offline_text)
+            self.lbl_offline.setStyleSheet("font-size: 11px; color: #8b949e; background: transparent; border: none;")
+            info_layout.addWidget(self.lbl_offline)
+
+        layout.addLayout(info_layout, stretch=1)
+        layout.addStretch()
+
+        right_layout = QVBoxLayout()
+        right_layout.setSpacing(3)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        if is_online:
+            game_name = data.get("game_name", "")
+            if game_name:
+                self.lbl_game = QLabel(game_name)
+                self.lbl_game.setStyleSheet("font-size: 11px; color: #8b949e; background: transparent; border: none;")
+                self.lbl_game.setAlignment(Qt.AlignmentFlag.AlignRight)
+                right_layout.addWidget(self.lbl_game)
+
+            viewer_count = data.get("viewer_count", 0)
+            self.lbl_viewers = QLabel(f"👥 {viewer_count}")
+            self.lbl_viewers.setStyleSheet("font-size: 11px; font-weight: bold; color: #c9d1d9; background: transparent; border: none;")
+            self.lbl_viewers.setAlignment(Qt.AlignmentFlag.AlignRight)
+            right_layout.addWidget(self.lbl_viewers)
+
+        layout.addLayout(right_layout)
+
+        btn_del = QPushButton("✕")
+        btn_del.setFixedSize(26, 26)
+        btn_del.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_del.setStyleSheet(STREAMER_CARD_DELETE_BTN)
+        btn_del.clicked.connect(lambda: on_delete(data["name"]))
+        layout.addWidget(btn_del, alignment=Qt.AlignmentFlag.AlignTop)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.on_click_callback(self.streamer_name)
+        super().mousePressEvent(event)
+
+
+class TwitchRaidApp(QMainWindow):
+    data_loaded_signal = Signal(list)
+    update_raid_btn_signal = Signal(str, str)
+    profile_updated_signal = Signal(object)
+    
+    show_login_signal = Signal()
+    show_main_signal = Signal()
+    start_login_signal = Signal()
+
     def __init__(self, lang):
         super().__init__()
-        
+
         try:
             import ctypes
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Paddi.RaidItBetter.v0.4.1")
@@ -48,484 +306,648 @@ class TwitchRaidApp(ctk.CTk):
         self.load_token = 0
         self.show_only_online = False
         self.last_streamer_data = []
+        self.select_streamer_name = None
+        self.is_raiding = False
+        self.raid_cancelled = False
 
         self.lang = lang
         self.t = load_translations(lang)
         self.twitch = TwitchClient()
+
+        self.about_open = False
+        self.settings_open = False
+        self.history_open = False
+
+        self.setWindowTitle(f"RaidItBetter - {APP_VERSION}")
+        self.setFixedSize(520, 620)
+        self.setStyleSheet(MAIN_WINDOW_STYLE)
+
+        self.central_widget = QWidget(self)
+        self.setCentralWidget(self.central_widget)
         
-        self.title(f"RaidItBetter - {APP_VERSION}")
-        self.geometry("520x620")
-        self.resizable(False, False)
+        self.main_layout = QHBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
 
-        self.update_idletasks()
-        width = 520
-        height = 620
-        screen_width = self.winfo_screenwidth()
-        screen_height = self.winfo_screenheight()
-        x = (screen_width // 2) - (width // 2)
-        y = (screen_height // 2) - (height // 2)
-        self.geometry(f"{width}x{height}+{x}+{y}")
+        self.stack = QStackedWidget()
+        self.main_layout.addWidget(self.stack)
 
-        if os.path.exists("assets/icon.ico"):
-            self.iconbitmap("assets/icon_task.ico")
+        self.loading_panel = LoadingPanel(self, self.t)
+        self.stack.addWidget(self.loading_panel)
 
-        # --- STATUSBAR ---
-        self.status_bar_frame = ctk.CTkFrame(self, fg_color=("gray85", "gray17"), height=30, corner_radius=0)
-        self.status_bar_frame.pack(side="bottom", fill="x")
-        self.status_bar_frame.pack_propagate(False)
+        self.language_panel = LanguagePanel(self, on_next_callback=self.on_language_selected)
+        self.stack.addWidget(self.language_panel)
 
-        self.label_status = ctk.CTkLabel(
-            self.status_bar_frame, 
-            text=self.t.get("ready"), 
-            font=ctk.CTkFont(size=11)
-        )
-        self.label_status.pack(side="left", padx=12, pady=4)
+        self.login_panel = LoginPanel(self, self)
+        self.stack.addWidget(self.login_panel)
 
-        # --- Main-CONTAINER
-        self.container_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.container_frame.pack(side="top", fill="both", expand=True)
+        self.content_container = QWidget()
+        self.content_layout = QVBoxLayout(self.content_container)
+        self.content_layout.setContentsMargins(20, 15, 20, 15)
+        self.content_layout.setSpacing(10)
+        self.stack.addWidget(self.content_container)
 
-        self.main_content_frame = ctk.CTkFrame(self.container_frame, fg_color="transparent", width=520)
-        self.main_content_frame.pack(side="left", fill="both", expand=False)
-        self.main_content_frame.pack_propagate(False)
+        self.panel_container = QWidget()
+        self.panel_container.hide()
+        self.panel_container_layout = QVBoxLayout(self.panel_container)
+        self.panel_container_layout.setContentsMargins(0, 0, 0, 0)
+        self.panel_container_layout.setSpacing(0)
+        self.main_layout.addWidget(self.panel_container)
 
-        # Header
-        self.header_frame = ctk.CTkFrame(self.main_content_frame, fg_color="transparent")
-        self.header_frame.pack(pady=(15, 5), fill="x", padx=20)
+        self.stack.setCurrentWidget(self.loading_panel)
 
-        self.title_label = ctk.CTkLabel(self.header_frame, text=self.t.get("title", "⚡ RaidItBetter"), font=ctk.CTkFont(size=20, weight="bold"))
-        self.title_label.pack(side="left")
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 5)
+        header_layout.setSpacing(10)
 
-        # Update Button (ganz rechts außen)
-        self.btn_update = ctk.CTkButton(
-            self.header_frame, text="🔄", width=32, height=32, 
-            fg_color=BTN_GRAY, hover_color=("gray75", "gray35"), 
-            font=ctk.CTkFont(size=14), command=self.on_update_click
-        )
-        self.btn_update.pack(side="right", padx=(0, 0))
-        self.btn_update.bind("<Enter>", lambda e: self.label_status.configure(text=self.t.get("tooltip_update", "Check for updates"), text_color=("gray30", "gray70")))
-        self.btn_update.bind("<Leave>", lambda e: self.label_status.configure(text=self.t.get("ready"), text_color=("gray30", "gray70")))
+        self.title_label = QLabel(self.t.get("title", "⚡ RaidItBetter"))
+        self.title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: white; background: transparent;")
+        header_layout.addWidget(self.title_label)
+        header_layout.addStretch()
+
+        tools_layout = QHBoxLayout()
+        tools_layout.setSpacing(6)
+
+        self.btn_history = self.create_header_btn("🧾", self.toggle_history, "History")
+        self.btn_settings = self.create_header_btn("⚙️", self.toggle_settings, "Settings")
+        self.btn_about = self.create_header_btn("ℹ️", self.toggle_about, "About")
+        self.btn_update = self.create_header_btn("🔄", self.on_update_click, "Updates")
+
+        tools_layout.addWidget(self.btn_history)
+        tools_layout.addWidget(self.btn_settings)
+        tools_layout.addWidget(self.btn_about)
+        tools_layout.addWidget(self.btn_update)
         
-        # About Button
-        self.btn_about = ctk.CTkButton(
-            self.header_frame, text="ℹ️", width=32, height=32,
-            fg_color=BTN_GRAY, hover_color=BTN_GRAY_HOVER,
-            font=ctk.CTkFont(size=14), command=self.toggle_about
-        )
-        self.btn_about.pack(side="right", padx=(0, 5))
-        self.btn_about.bind("<Enter>", lambda e: self.label_status.configure(text=self.t.get("tooltip_about", "About"), text_color=("gray30", "gray70")))
-        self.btn_about.bind("<Leave>", lambda e: self.label_status.configure(text=self.t.get("ready"), text_color=("gray30", "gray70")))
+        header_layout.addLayout(tools_layout)
+
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.VLine)
+        separator.setFrameShadow(QFrame.Shadow.Plain)
+        separator.setStyleSheet("background-color: #30363d; max-width: 1px; margin: 6px 0px;")
+        header_layout.addWidget(separator)
+
+        self.btn_profile = QPushButton("👤")
+        self.btn_profile.setFixedSize(34, 34)
+        self.btn_profile.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_profile.setToolTip("Login / Account")
+        self.btn_profile.setStyleSheet(HEADER_BTN_STYLE)
+
+        self.profile_menu = QMenu(self)
+        self.profile_menu.setStyleSheet(PROFILE_MENU)
         
-        # Settings Button
-        self.btn_settings = ctk.CTkButton(
-            self.header_frame, text="⚙️", width=32, height=32,
-            fg_color=BTN_GRAY, hover_color=BTN_GRAY_HOVER,
-            font=ctk.CTkFont(size=14), command=self.toggle_settings
-        )
-        self.btn_settings.pack(side="right", padx=(0, 5))
-        self.btn_settings.bind("<Enter>", lambda e: self.label_status.configure(text=self.t.get("tooltip_settings", "Settings"), text_color=("gray30", "gray70")))
-        self.btn_settings.bind("<Leave>", lambda e: self.label_status.configure(text=self.t.get("ready"), text_color=("gray30", "gray70")))
+        self.btn_profile.clicked.connect(self.handle_auth_click)
+        header_layout.addWidget(self.btn_profile)
+
+        self.content_layout.addLayout(header_layout)
+
+        input_container = QFrame()
+        input_container.setStyleSheet(INPUT_CONTAINER_STYLE)
+        input_layout = QHBoxLayout(input_container)
+        input_layout.setContentsMargins(10, 8, 10, 8)
+
+        self.entry_streamer = QLineEdit()
+        self.entry_streamer.setPlaceholderText(self.t.get("placeholder", "Streamer Name..."))
+        self.entry_streamer.setFixedHeight(35)
+        self.entry_streamer.setStyleSheet(ENTRY_STREAMER_STYLE)
+        self.entry_streamer.returnPressed.connect(self.add_favorite)
+        input_layout.addWidget(self.entry_streamer)
+
+        self.btn_add_fav = QPushButton(self.t.get("save_fav", "Hinzufügen"))
+        self.btn_add_fav.setFixedHeight(35)
+        self.btn_add_fav.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_add_fav.setStyleSheet(BTN_ADD_FAV_STYLE)
+        self.btn_add_fav.clicked.connect(self.add_favorite)
+        input_layout.addWidget(self.btn_add_fav)
+        self.content_layout.addWidget(input_container)
+
+        filter_layout = QHBoxLayout()
         
-        # Raid History Button
-        self.btn_history = ctk.CTkButton(
-            self.header_frame, text="🧾", width=32, height=32,
-            fg_color=BTN_GRAY, hover_color=("gray75", "gray35"),
-            font=ctk.CTkFont(size=14), command=self.open_history_window
-        )
-        self.btn_history.pack(side="right", padx=(0, 5))
-        self.btn_history.bind("<Enter>", lambda e: self.label_status.configure(text=self.t.get("tooltip_history", "History"), text_color=("gray30", "gray70")))
-        self.btn_history.bind("<Leave>", lambda e: self.label_status.configure(text=self.t.get("ready"), text_color=("gray30", "gray70")))
-
-        # Login Button
-        login_text = self.t.get("logout") if self.twitch.access_token else self.t.get("login")
-        login_color = COLOR_DANGER if self.twitch.access_token else COLOR_PRIMARY
-        login_hover = COLOR_DANGER_HOVER if self.twitch.access_token else COLOR_PRIMARY_HOVER
+        self.combo_sort = QComboBox()
+        font = self.combo_sort.font()
+        font.setPointSize(10)
+        self.combo_sort.setFont(font)
+        self.combo_sort.setStyleSheet("color: #c9d1d9; background-color: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 2px 6px;")
         
-        self.btn_login = ctk.CTkButton(self.main_content_frame, text=login_text, fg_color=login_color, hover_color=login_hover, width=460, height=35, command=self.handle_auth_click)
-        self.btn_login.pack(pady=5)
-
-        self.input_frame = ctk.CTkFrame(self.main_content_frame, fg_color="transparent")
-        self.input_frame.pack(pady=5, fill="x", padx=20)
-
-        self.entry_streamer = ctk.CTkEntry(self.input_frame, placeholder_text=self.t.get("placeholder"), width=335, height=35)
-        self.entry_streamer.pack(side="left")
-        self.entry_streamer.bind("<Return>", lambda event: self.add_favorite())
+        self.combo_sort.addItem(self.t.get("sort_custom", "Benutzerdefiniert"), "custom")
+        self.combo_sort.addItem(self.t.get("sort_viewers_high", "Viewer: Hoch --> Niedrig"), "high_low")
+        self.combo_sort.addItem(self.t.get("sort_viewers_low", "Viewer: Niedrig --> Hoch"), "low_high")
         
-        self.select_streamer_name = None
-
-        self.btn_add_fav = ctk.CTkButton(self.input_frame, text=self.t.get("save_fav"), fg_color="#333333", hover_color="#444444", width=115, height=35, command=self.add_favorite)
-        self.btn_add_fav.pack(side="right")
+        self.combo_sort.currentIndexChanged.connect(self.on_sort_changed)
+        filter_layout.addWidget(self.combo_sort)
         
-        # Online Filter
-        self.filter_frame = ctk.CTkFrame(self.main_content_frame, fg_color="transparent")
-        self.filter_frame.pack(fill="x", padx=20, pady=(5,0))
+        self.checkbox_online = QCheckBox(self.t.get("only_online", "Nur Online Kanäle"))
+        self.checkbox_online.setStyleSheet("color: #c9d1d9; font-size: 11px;")
+        self.checkbox_online.stateChanged.connect(self.toggle_online_filter)
+        filter_layout.addWidget(self.checkbox_online)
         
-        self.switch_online_filter = ctk.CTkSwitch(
-            self.filter_frame,
-            text=self.t.get("only_online", "Nur Online Kanäle"),
-            font=ctk.CTkFont(size=11),
-            command=self.toggle_online_filter
-        )
-        self.switch_online_filter.pack(side="right")
+        self.content_layout.addLayout(filter_layout)
 
-        self.favorites_frame = ctk.CTkScrollableFrame(self.main_content_frame, width=460, height=270, fg_color=BG_SCROLL)
-        self.favorites_frame.pack(pady=10, padx=20)
+        self.list_favorites = FavoritesListWidget()
+        self.list_favorites.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self.list_favorites.setStyleSheet(SCROLL_AREA_STYLE)
+        self.content_layout.addWidget(self.list_favorites)
+        
+        self.btn_raid = QPushButton(self.t.get("start_raid", "⚡ Raid starten"))
+        self.btn_raid.setFixedHeight(40)
+        self.btn_raid.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_raid.setStyleSheet(BTN_RAID_START)
+        self.btn_raid.clicked.connect(self.on_raid_click)
+        self.content_layout.addWidget(self.btn_raid)
+        
+        self.label_status = QLabel(self.t.get("ready", "Bereit"))
+        self.label_status.setStyleSheet(STATUSBAR_STYLE)
+        self.content_layout.addWidget(self.label_status)
 
-        # Raid Button
-        self.is_raiding = False
-        self.raid_thread = None
-        self.btn_raid = ctk.CTkButton(self.main_content_frame, text=self.t.get("start_raid"), fg_color=COLOR_RAID, hover_color=COLOR_RAID_HOVER, width=460, height=40, font=ctk.CTkFont(size=14, weight="bold"), command=self.on_raid_click)
-        self.btn_raid.pack(pady=5)
+        self.data_loaded_signal.connect(self._render_favorites_ui)
+        self.update_raid_btn_signal.connect(self._apply_raid_btn_style)
+        self.profile_updated_signal.connect(self._apply_profile_image)
+        
+        self.show_login_signal.connect(self.show_login_view)
+        self.show_main_signal.connect(self.show_main_view)
+        self.start_login_signal.connect(self._perform_auth_in_main_thread)
 
-        self.refresh_favorites_list()
         threading.Thread(target=self.check_app_updates_background, daemon=True).start()
         threading.Thread(target=self.validate_token_on_startup, daemon=True).start()
+
+        self.auto_timer = QTimer(self)
+        self.auto_timer.timeout.connect(self.start_auto_refresh)
+        self.auto_timer.start(30000)
+
+        self.token_timer = QTimer(self)
+        self.token_timer.timeout.connect(self.background_token_refresh)
+        self.token_timer.start(1800000)
+
+    def _open_side_panel(self, panel_widget_class):
+        while self.panel_container_layout.count():
+            child = self.panel_container_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        if panel_widget_class == RaidHistoryWindow:
+            panel = panel_widget_class(self.panel_container, self.t)
+        else:
+            panel = panel_widget_class(self.panel_container, self)
+
+        self.panel_container_layout.addWidget(panel)
+        self.panel_container.show()
+        self.setFixedSize(920, 620)
+
+    def _close_side_panel(self):
+        while self.panel_container_layout.count():
+            child = self.panel_container_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        self.panel_container.hide()
+        self.setFixedSize(520, 620)
+
+    def toggle_settings(self):
+        if self.settings_open:
+            self._close_side_panel()
+            self.settings_open = False
+        else:
+            self.about_open = False
+            self.history_open = False
+            self._open_side_panel(SettingsPanel)
+            self.settings_open = True
+
+    def toggle_about(self):
+        if self.about_open:
+            self._close_side_panel()
+            self.about_open = False
+        else:
+            self.settings_open = False
+            self.history_open = False
+            self._open_side_panel(Aboutwindow)
+            self.about_open = True
+            
+    def toggle_history(self):
+        if self.history_open:
+            self._close_side_panel()
+            self.history_open = False
+        else:
+            self.settings_open = False
+            self.about_open = False
+            self._open_side_panel(RaidHistoryWindow)
+            self.history_open = True
+
+    def background_token_refresh(self):
+        if self.twitch.access_token:
+            threading.Thread(target=self.twitch.validate_and_refresh_if_needed, daemon=True).start()
+
+    def switch_view_animated(self, target_widget):
+        effect = QGraphicsOpacityEffect(target_widget)
+        target_widget.setGraphicsEffect(effect)
         
-        self.start_auto_refresh()
+        self.stack.setCurrentWidget(target_widget)
+        
+        self.fade_anim = QPropertyAnimation(effect, b"opacity")
+        self.fade_anim.setDuration(350)
+        self.fade_anim.setStartValue(0.0)
+        self.fade_anim.setEndValue(1.0)
+        self.fade_anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        self.fade_anim.start()
+
+    @Slot()
+    def show_login_view(self):
+        self.switch_view_animated(self.login_panel)
+
+    @Slot()
+    def show_main_view(self):
+        self.switch_view_animated(self.content_container)
+        self.refresh_favorites_list()
+        self.update_profile_button()
+
+    def create_header_btn(self, text, callback, tooltip):
+        btn = QPushButton(text)
+        btn.setFixedSize(32, 32)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setToolTip(tooltip)
+        btn.setStyleSheet(HEADER_BTN_STYLE)
+        btn.clicked.connect(callback)
+        return btn
 
     def check_app_updates_background(self):
-        import time
         while True:
             has_update, self.latest_release_url = check_update_status()
-            color = BTN_ORANGE if has_update else (BTN_GREEN if self.latest_release_url else BTN_GRAY)
-            self.after(0, lambda c=color: self.btn_update.configure(fg_color=c))
+            color = "#ff851b" if has_update else ("#28a745" if self.latest_release_url else "#21262d")
+            QMetaObject.invokeMethod(self.btn_update, "setStyleSheet", Qt.ConnectionType.QueuedConnection, 
+                                      Q_ARG(str, f"QPushButton {{ background-color: {color}; color: white; border-radius: 6px; font-size: 14px; }}"))
             time.sleep(1800)
-            
+
     def validate_token_on_startup(self):
-        is_valid = self.twitch.validate_and_refresh_if_needed()
-        if not is_valid and self.twitch.access_token:
-            self.after(0, lambda: self.twitch.logout())
-            self.after(0, lambda: self.btn_login.configure(text=self.t.get("login"), fg_color="#9146FF", hover_color="#772ce8"))
-            self.after(0, lambda: self.label_status.configure(text="❌ Session expired. Please log in again.", text_color="orange"))
-        elif is_valid:
-            self.after(0, lambda: self.btn_login.configure(text=self.t.get("logout"), fg_color="#d9534f", hover_color="#c9302c"))
+        def background_validate():
+            time.sleep(1.5)
+            favorites = get_favorites_db()
+            if favorites and self.twitch.access_token:
+                try:
+                    self.last_streamer_data = self.twitch.get_streamers_info(favorites)
+                except Exception as e:
+                    print(f"[ERROR] Fehler beim Vorab-Laden: {e}")
+            is_valid = self.twitch.validate_and_refresh_if_needed()
+            if is_valid:
+                self.show_main_signal.emit()
+            else:
+                if is_valid:
+                # Daten direkt an UI übergeben, damit sie sofort da sind
+                    if self.last_streamer_data:
+                        self.data_loaded_signal.emit(self.last_streamer_data)
+                    self.show_main_signal.emit()
+                else:
+                    QMetaObject.invokeMethod(self, "show_language_view", Qt.ConnectionType.QueuedConnection)
+        
+        if not self.twitch.access_token:
+            QMetaObject.invokeMethod(self, "show_language_view", Qt.ConnectionType.QueuedConnection)
+        else:
+            threading.Thread(target=background_validate, daemon=True).start()
 
     def on_update_click(self):
-        has_update, self.latest_release_url = check_update_status()
-        color = BTN_ORANGE if has_update else (BTN_GREEN if self.latest_release_url else BTN_GRAY)
-        self.btn_update.configure(fg_color=color)
         check_for_updates(parent_window=self, silent=False)
-        
+
     def change_language(self, lang):
         self.lang = lang
         save_language(self.lang)
         self.t = load_translations(lang)
         self.update_ui_texts()
         self.refresh_favorites_list()
-        
-        if hasattr(self, "history_win_ref") and self.history_win_ref:
-            try:
-                self.history_win_ref.destroy()
-            except Exception:
-                pass
-            self.history_win_ref = None
 
-    def toggle_language(self):
-        new_lang = "en" if self.lang == "de" else "de"
-        self.change_language(new_lang)
-        
-    def toggle_online_filter(self):
-        self.show_only_online = self.switch_online_filter.get()
-        if hasattr(self, "last_streamer_data") and self.last_streamer_data:
-            current_favs = [f.lower() for f in get_favorites_db()]
-            valid_data = [d for d in self.last_streamer_data if d["name"].lower() in current_favs]
-            self._render_favorites_ui(valid_data)
-        else:
-            self.refresh_favorites_list()
-            
-    def toggle_settings(self):
-        if getattr(self, "about_open", False):
-            self.toggle_about()
-            
-        current_x = self.winfo_x()
-        current_y = self.winfo_y()
-        
-        if getattr(self, "settings_open", False):
-            if hasattr(self, "settings_frame") and self.settings_frame:
-                self.settings_frame.destroy()
-                del self.settings_frame
-            self.geometry(f"520x620+{current_x}+{current_y}")
-            self.settings_open = False
-        else:
-            self.geometry(f"920x620+{current_x}+{current_y}")
-            self.update_idletasks()
-            self.settings_frame = SettingsPanel(self.container_frame, self)
-            self.settings_frame.pack(side="right", fill="both", expand=True)
-            self.settings_open = True
-            
-    def toggle_about(self):
-        if getattr(self, "settings_open", False):
-            self.toggle_settings()
-            
-        current_x = self.winfo_x()
-        current_y = self.winfo_y()
-        
-        if getattr(self, "about_open", False):
-            if hasattr(self, "about_frame") and self.about_frame:
-                self.about_frame.destroy()
-                del self.about_frame
-            self.geometry(f"520x620+{current_x}+{current_y}")
-            self.about_open = False
-        else:
-            self.geometry(f"920x620+{current_x}+{current_y}")
-            self.update_idletasks()
-            self.about_frame = Aboutwindow(self.container_frame, self)
-            self.about_frame.pack(side="right", fill="both", expand=True)
-            self.about_open = True
-
-    def setup_settings_panel(self):
-        self.settings_frame = SettingsPanel(self.container_frame, self)
-        self.settings_frame.pack(side="right", fill="both", expand=True)
-
-    def on_settings_language_change(self, choice):
-        lang_code = "de" if choice == "Deutsch" else "en"
-        if hasattr(self, "change_language"):
-            self.change_language(lang_code)
+    @Slot()
+    def _perform_auth_in_main_thread(self):
+        success, message = self.twitch.start_login(self.on_login_success)
+        self.label_status.setText(message)
 
     def update_ui_texts(self):
-        self.title_label.configure(text=self.t.get("title", "⚡ RaidItBetter"))
-        login_text = self.t.get("logout") if self.twitch.access_token else self.t.get("login")
-        login_color = "#d9534f" if self.twitch.access_token else "#9146FF"
-        login_hover = "#c9302c" if self.twitch.access_token else "#772ce8"
-        self.btn_login.configure(text=login_text, fg_color=login_color, hover_color=login_hover)
-        self.entry_streamer.configure(placeholder_text=self.t.get("placeholder"))
-        self.btn_add_fav.configure(text=self.t.get("save_fav"))
-        self.btn_raid.configure(text=self.t.get("start_raid"))
-        self.label_status.configure(text=self.t.get("ready"))
-        self.switch_online_filter.configure(text=self.t.get("only_online", "Nur Online Kanäle"))
+        self.title_label.setText(self.t.get("title", "⚡ RaidItBetter"))
+        self.entry_streamer.setPlaceholderText(self.t.get("placeholder", "Streamer Name..."))
+        self.btn_add_fav.setText(self.t.get("save_fav", "Hinzufügen"))
+        self.btn_raid.setText(self.t.get("start_raid", "⚡ Raid starten"))
+        self.checkbox_online.setText(self.t.get("only_online", "Nur Online Kanäle"))
+        self.label_status.setText(self.t.get("ready", "Bereit"))
 
-    def refresh_favorites_list(self):
-        self.load_token += 1
-        current_token = self.load_token
+        current_data = self.combo_sort.currentData()
         
-        favorites = get_favorites_db()
-        if not favorites:
-            for widget in self.favorites_frame.winfo_children():
-                try: widget.destroy() 
-                except Exception: pass
-            lbl = ctk.CTkLabel(self.favorites_frame, text=self.t.get("select_fav", "No favourites saved"), text_color="gray")
-            lbl.pack(pady=20)
-            return
+        self.combo_sort.blockSignals(True)
+        self.combo_sort.clear()
+        self.combo_sort.addItem(self.t.get("sort_custom", "Benutzerdefiniert"), "custom")
+        self.combo_sort.addItem(self.t.get("sort_viewers_high", "Viewer: Hoch --> Niedrig"), "high_low")
+        self.combo_sort.addItem(self.t.get("sort_viewers_low", "Viewer: Niedrig --> Hoch"), "low_high")
+        
+        index = self.combo_sort.findData(current_data)
+        if index != -1:
+            self.combo_sort.setCurrentIndex(index)
+            
+        self.combo_sort.blockSignals(False)
+        
+    def update_profile_button(self):
+        def fetch():
+            user_info = self.twitch.get_current_user_info()
+            if user_info and "profile_image_url" in user_info:
+                img_url = user_info["profile_image_url"]
+                try:
+                    import requests
+                    data = requests.get(img_url).content
+                    pixmap = QPixmap()
+                    pixmap.loadFromData(QByteArray(data))
+                    
+                    size = 28
+                    scaled = pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+                    
+                    rounded = QPixmap(size, size)
+                    rounded.fill(Qt.GlobalColor.transparent)
+                    
+                    painter = QPainter(rounded)
+                    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                    path = QPainterPath()
+                    path.addEllipse(0, 0, size, size)
+                    painter.setClipPath(path)
+                    painter.drawPixmap(0, 0, scaled)
+                    painter.end()
+                
+                    self.profile_updated_signal.emit(rounded)
+                except Exception as e:
+                    print(f"Error loading profile image: {e}")
+                    self.profile_updated_signal.emit(None)
+            else:
+                self.profile_updated_signal.emit(None)
+        
+        if self.twitch.access_token:
+            threading.Thread(target=fetch, daemon=True).start()
+        else:
+            self._apply_profile_image(None)
 
-        threading.Thread(target=self.load_favorites_data, args=(favorites, current_token), daemon=True).start()
+    @Slot(object)
+    def _apply_profile_image(self, pixmap):
+        if pixmap and not pixmap.isNull():
+            icon = QIcon(pixmap)
+            self.btn_profile.setIcon(icon)
+            self.btn_profile.setText("")
+            self.btn_profile.setIconSize(pixmap.size())
+            self.btn_profile.setStyleSheet(HEADER_BTN_STYLE + " border: 1px solid #238636; padding: 0px; border-radius: 6px;")
+            self.btn_profile.update()
+        else:
+            self.btn_profile.setIcon(QIcon())
+            self.btn_profile.setText("👤")
+            self.btn_profile.setStyleSheet(HEADER_BTN_STYLE)
+            self.btn_profile.update()
+
+    def toggle_online_filter(self, state):
+        self.show_only_online = bool(state)
+        if self.last_streamer_data:
+            self._render_favorites_ui(self.last_streamer_data)
+
+    @Slot(list)
+    def _render_favorites_ui(self, streamer_data):
+        scrollbar = self.list_favorites.verticalScrollBar()
+        scroll_pos = scrollbar.value() if scrollbar else 0
+
+        self.list_favorites.clear()
+
+        display_data = [d for d in streamer_data if d["is_online"]] if self.show_only_online else streamer_data
         
+        sort_data = self.combo_sort.currentData() if hasattr(self, "combo_sort") else "custom"
+        
+        is_custom_sort = (sort_data == "custom")
+
+        if sort_data == "high_low":
+            display_data.sort(key=lambda x: x.get("viewer_count", 0), reverse=True)
+        elif sort_data == "low_high":
+            display_data.sort(key=lambda x: x.get("viewer_count", 0), reverse=False)
+        elif is_custom_sort:
+            favorites = get_favorites_db()
+            name_to_data = {d["name"].lower(): d for d in display_data}
+            ordered_data = [name_to_data[n] for n in favorites if n in name_to_data]
+            for d in display_data:
+                if d["name"].lower() not in favorites:
+                    ordered_data.append(d)
+            display_data = ordered_data
+
+        if not display_data:
+            msg = self.t.get("no_online_favs", "Keine Online-Kanäle gefunden") if self.show_only_online else self.t.get("select_fav", "No favourites saved")
+            item = QListWidgetItem(self.list_favorites)
+            lbl = QLabel(f"❤️\n\n{msg}")
+            lbl.setStyleSheet("color: #8b949e; background: transparent; padding: 20px; font-size: 13px;")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            item.setSizeHint(lbl.sizeHint())
+            self.list_favorites.setItemWidget(item, lbl)
+        else:
+            for i, data in enumerate(display_data):
+                is_selected = (data["name"].lower() == str(self.select_streamer_name).lower())
+                last_time = get_last_raid_for_channel(data['name'])
+                
+                list_item = QListWidgetItem(self.list_favorites)
+                card = StreamerCard(
+                    parent=self.list_favorites,
+                    data=data,
+                    is_selected=is_selected,
+                    on_click=self.select_streamer,
+                    on_delete=self.remove_favorite,
+                    on_move_up=self.move_favorite_up,
+                    on_move_down=self.move_favorite_down,
+                    translations=self.t,
+                    last_raid_time=last_time,
+                    show_arrows=is_custom_sort 
+                )
+                list_item.setSizeHint(QSize(0, 100))
+                self.list_favorites.addItem(list_item)
+                self.list_favorites.setItemWidget(list_item, card)
+
+        if scrollbar:
+            scrollbar.setValue(scroll_pos)
+
     def start_auto_refresh(self):
         def background_refresh():
             favorites = get_favorites_db()
             if favorites:
                 streamers_data = self.twitch.get_streamers_info(favorites)
-                self.after(0, lambda: self._render_favorites_ui(streamers_data))
-            
+                self.data_loaded_signal.emit(streamers_data)
         threading.Thread(target=background_refresh, daemon=True).start()
-        self.auto_refresh_timer = self.after(60000, self.start_auto_refresh)
 
     def load_favorites_data(self, favorites, token):
         try:
             streamer_data = self.twitch.get_streamers_info(favorites)
-            self.after(0, lambda: self._safe_render(streamer_data, token))
+            if token == self.load_token:
+                self.last_streamer_data = streamer_data
+                self.data_loaded_signal.emit(streamer_data)
         except Exception as e:
-            print(f"ERROR while loading favorites: {e}")
-
-    def _safe_render(self, streamer_data, token):
-        if token != self.load_token:
-            return
-        self.last_streamer_data = streamer_data
-        try:
-            self._render_favorites_ui(streamer_data)
-        except Exception as e:
-            print(f"Render error: {e}")
-
-    def _render_favorites_ui(self, streamer_data=None):
-        for widget in self.favorites_frame.winfo_children():
-            widget.destroy()
-            
-        if getattr(self, "show_only_online", False):
-            display_data = [d for d in streamer_data if d["is_online"]]
-        else:
-            display_data = streamer_data
-
-        display_data = sorted(display_data, key=lambda x: (not x["is_online"], x["name"].lower()))
-            
-        if not display_data:
-            lbl = ctk.CTkLabel(
-                self.favorites_frame, 
-                text=self.t.get("no_online_favs", "Keine Online-Kanäle gefunden") 
-                if getattr(self, "show_only_online", False) 
-                else self.t.get("select_fav", "No favourites saved"), 
-                text_color="gray"
-            )
-            lbl.pack(pady=20)
+            print(f"[ERROR] Fehler in load_favorites_data: {e}")
+        
+    def refresh_favorites_list(self):
+        self.load_token += 1
+        current_token = self.load_token
+        favorites = get_favorites_db()
+        
+        if not favorites:
+            self.list_favorites.clear()
+            item = QListWidgetItem(self.list_favorites)
+            lbl = QLabel(f"❤️\n\n{self.t.get('select_fav', 'No favourites saved')}")
+            lbl.setStyleSheet("color: #8b949e; background: transparent; padding: 20px; font-size: 13px;")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            item.setSizeHint(lbl.sizeHint())
+            self.list_favorites.setItemWidget(item, lbl)
             return
 
-        for data in display_data:
-            is_selected = (data["name"].lower() == str(self.select_streamer_name).lower())
-            
-            last_time = None
-            if not data["is_online"]:
-                last_time = get_last_raid_for_channel(data['name'])
-
-            StreamerCard(
-                parent=self.favorites_frame,
-                data=data,
-                is_selected=is_selected,
-                on_click=self.select_streamer,
-                on_delete=self.remove_favorite,
-                translations=self.t,
-                last_raid_time=last_time
-            )
+        threading.Thread(target=self.load_favorites_data, args=(favorites, current_token), daemon=True).start()
 
     def select_streamer(self, name):
-        try:
-            self.select_streamer_name = name
-            if hasattr(self, "last_streamer_data") and self.last_streamer_data:
-                self._render_favorites_ui(self.last_streamer_data)
-        except Exception as e:
-            print(f"Error occurred while selecting streamer: {e}")
+        self.select_streamer_name = name
+        if self.last_streamer_data:
+            self._render_favorites_ui(self.last_streamer_data)
 
     def add_favorite(self):
-        streamer_name = self.entry_streamer.get().strip().lower()
+        streamer_name = self.entry_streamer.text().strip().lower()
         if not streamer_name:
             return
         if not re.match(r"^\w{1,25}$", streamer_name):
-            self.label_status.configure(text=self.t.get("invalid_name"), text_color="red")
+            self.label_status.setText(self.t.get("invalid_name", "Ungültiger Name"))
             return
 
         if add_favorite_db(streamer_name):
-            self.show_status(f"{streamer_name} added to favorites!", message_type="success")
-            threading.Thread(target=self.refresh_favorites_list, daemon=True).start()
-            msg = self.t.get("fav_added").format(name=streamer_name)
-            self.label_status.configure(text=msg, text_color="green")
+            self.refresh_favorites_list()
+            self.label_status.setText(self.t.get("fav_added", "Hinzugefügt").format(name=streamer_name))
+            self.entry_streamer.clear()
         else:
-            self.show_status(f"{streamer_name} is already in favorites.", message_type="info")
-            self.label_status.configure(text=self.t.get("fav_exists"), text_color="blue")
+            self.label_status.setText(self.t.get("fav_exists", "Bereits vorhanden"))
 
     def remove_favorite(self, name):
         remove_favorite_db(name)
-        if hasattr(self, "last_streamer_data") and self.last_streamer_data:
+        if self.last_streamer_data:
             self.last_streamer_data = [d for d in self.last_streamer_data if d["name"].lower() != name.lower()]
-
         self.refresh_favorites_list()
-        msg = self.t.get("fav_removed", "Favourite {name} removed").format(name=name)
-        self.label_status.configure(text=msg, text_color="blue")
+        self.label_status.setText(f"Entfernt: {name}")
+
+    def move_favorite_up(self, name):
+        favorites = get_favorites_db()
+        if name in favorites:
+            idx = favorites.index(name)
+            if idx > 0:
+                favorites[idx], favorites[idx - 1] = favorites[idx - 1], favorites[idx]
+                update_favorites_order(favorites)
+                
+                name_to_data = {d["name"].lower(): d for d in self.last_streamer_data}
+                self.last_streamer_data = [name_to_data[n] for n in favorites if n in name_to_data]
+                for d in self.last_streamer_data:
+                    if d["name"].lower() not in favorites:
+                        self.last_streamer_data.append(d)
+                        
+                self._render_favorites_ui(self.last_streamer_data)
+
+    def move_favorite_down(self, name):
+        favorites = get_favorites_db()
+        if name in favorites:
+            idx = favorites.index(name)
+            if idx < len(favorites) - 1:
+                favorites[idx], favorites[idx + 1] = favorites[idx + 1], favorites[idx]
+                update_favorites_order(favorites)
+                
+                name_to_data = {d["name"].lower(): d for d in self.last_streamer_data}
+                self.last_streamer_data = [name_to_data[n] for n in favorites if n in name_to_data]
+                for d in self.last_streamer_data:
+                    if d["name"].lower() not in favorites:
+                        self.last_streamer_data.append(d)
+                        
+                self._render_favorites_ui(self.last_streamer_data)
 
     def handle_auth_click(self):
         if self.twitch.access_token:
-            self.twitch.logout()
-            self.btn_login.configure(text=self.t.get("login"), fg_color="#9146FF", hover_color="#772ce8")
-            self.label_status.configure(text=self.t.get("logged_out"), text_color="blue")
+            self.profile_menu.clear()
+
+            user_info = self.twitch.get_current_user_info()
+            username = user_info.get("display_name", "Eingeloggt") if user_info else "Eingeloggt"
+            
+            action_info = self.profile_menu.addAction(f"👤 {username}")
+            action_info.setEnabled(False)
+            
+            self.profile_menu.addSeparator()
+            
+            action_logout = self.profile_menu.addAction("Abmelden")
+            action_logout.triggered.connect(self.perform_logout)
+            
+            pos = self.btn_profile.mapToGlobal(QPoint(0, self.btn_profile.height() + 4))
+            self.profile_menu.exec(pos)
         else:
-            success, message = self.twitch.start_login(self.on_login_success)
-            color = "blue" if success else "red"
-            self.label_status.configure(text=message, text_color=color)
+            self.start_login_signal.emit()
 
     def on_login_success(self, event=None):
-        self.after(0, lambda: self.btn_login.configure(text=self.t.get("logout"), fg_color="#d9534f", hover_color="#c9302c"))
-        self.after(0, lambda: self.label_status.configure(text=self.t.get("login_success"), text_color="green"))
-        self.refresh_favorites_list()
+        self.show_main_signal.emit()
+        msg = self.t.get("login_success", "Erfolgreich angemeldet")
+        QMetaObject.invokeMethod(
+            self.label_status, 
+            "setText", 
+            Qt.ConnectionType.QueuedConnection, 
+            Q_ARG(str, msg)
+        )
 
-    def on_raid_click(self, event=None):
+    def perform_logout(self):
+        self.twitch.logout()
+        self.show_login_signal.emit()
+        msg = self.t.get("logged_out", "Abgemeldet")
+        QMetaObject.invokeMethod(
+            self.label_status, 
+            "setText", 
+            Qt.ConnectionType.QueuedConnection, 
+            Q_ARG(str, msg)
+        )
+
+    def on_raid_click(self):
+        streamer_name = self.entry_streamer.text().strip().lower()
+        if not streamer_name and self.select_streamer_name:
+            streamer_name = self.select_streamer_name.strip().lower()
+
+        if not streamer_name and not self.is_raiding:
+            self.label_status.setText(self.t.get("enter_name_raid", "Bitte Ziel eingeben"))
+            return
+
         if not self.is_raiding:
-            streamer_name = self.entry_streamer.get().strip().lower()
-            if not streamer_name and hasattr(self, "select_streamer_name") and self.select_streamer_name:
-                streamer_name = self.select_streamer_name.strip().lower()
-                
-            if not streamer_name:
-                self.label_status.configure(text=self.t.get("enter_name_raid"), text_color="orange")
-                return
-
-            if not re.match(r"^\w{1,25}$", streamer_name):
-                self.label_status.configure(text=self.t.get("invalid_streamer"), text_color="red")
-                return
-
-            self.is_raiding = True
-            self.raid_cancelled = False
-            self.btn_raid.configure(text="Raid abbrechen", fg_color="#333333", hover_color="#444444")
-
-            searching_msg = self.t.get("searching").format(name=streamer_name)
-            self.label_status.configure(text=searching_msg, text_color="blue")
+            self.label_status.setText("Starte Raid...")
 
             def run():
-                try:
-                    success, message = self.twitch.execute_raid(streamer_name)
+                success, message = self.twitch.execute_raid(streamer_name)
+                
+                QMetaObject.invokeMethod(self.label_status, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, message))
+                
+                if success:
+                    self.is_raiding = True
+                    self.raid_cancelled = False
                     
-                    if self.raid_cancelled:
-                        return
-
-                    if success:
-                        add_raid_history_db(streamer_name, viewer_count=0, status="Success")
-                        self.after(0, lambda: self.refresh_favorites_list())
-                        self.after(0, lambda: self.show_status(message, message_type="success"))
-                        self.after(0, lambda: self.label_status.configure(text=message, text_color="green"))
-                    else:
-                        self.after(0, lambda: self.show_status(message, message_type="error"))
-                        self.after(0, lambda: self.label_status.configure(text=message, text_color="red"))
-                        self.after(0, lambda: self.reset_raid_button_state())
+                    self.update_raid_btn_signal.emit("Raid abbrechen", BTN_RAID_CANCEL)
                     
-                except Exception as ex:
-                    if not self.raid_cancelled:
-                        self.after(0, lambda: self.label_status.configure(text=f"Raid-Fehler: {ex}", text_color="red"))
-                        self.after(0, lambda: self.reset_raid_button_state())
+                    add_raid_history_db(streamer_name, viewer_count=0, status="Success")
+                    QMetaObject.invokeMethod(self, "refresh_favorites_list", Qt.ConnectionType.QueuedConnection)
+                else:
+                    QMetaObject.invokeMethod(self, "reset_raid_button_state", Qt.ConnectionType.QueuedConnection)
 
-            self.raid_thread = threading.Thread(target=run, daemon=True)
-            self.raid_thread.start()
+            threading.Thread(target=run, daemon=True).start()
 
-            def auto_reset():
-                if self.is_raiding and not self.raid_cancelled:
-                    self.is_raiding = False
-                    self.reset_raid_button_state()
-                    self.label_status.configure(text="⏱️ Raid-Time expired.", text_color="gray")
-
-            self.after(90000, auto_reset)
         else:
             self.raid_cancelled = True
-            self.is_raiding = False
-            self.btn_raid.configure(text=self.t.get("start_raid"), fg_color=COLOR_RAID, hover_color=COLOR_RAID_HOVER)
-            self.label_status.configure(text="Raid wird abgebrochen...", text_color="orange")
+            self.label_status.setText("Breche Raid ab...")
+
+            def cancel_run():
+                success, message = self.twitch.cancel_raid()
+                QMetaObject.invokeMethod(self.label_status, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, message))
+                QMetaObject.invokeMethod(self, "reset_raid_button_state", Qt.ConnectionType.QueuedConnection)
+
+            threading.Thread(target=cancel_run, daemon=True).start()
             
-            def cancel_worker():
-                try:
-                    success, message = self.twitch.cancel_raid()
-                    color = "green" if success else "orange"
-                    self.after(0, lambda: self.label_status.configure(text=message, text_color=color))
-                except Exception as e:
-                    self.after(0, lambda: self.label_status.configure(text=f"Fehler beim Abbrechen: {e}", text_color="red"))
-                self.after(0, lambda: self.reset_raid_button_state())
-            threading.Thread(target=cancel_worker, daemon=True).start()
-            
+    def on_sort_changed(self):
+        if self.last_streamer_data:
+            self._render_favorites_ui(self.last_streamer_data)
+
+    @Slot()
     def reset_raid_button_state(self):
         self.is_raiding = False
-        self.btn_raid.configure(text=self.t.get("start_raid"), fg_color=COLOR_RAID, hover_color=COLOR_RAID_HOVER)
+        self.btn_raid.setText(self.t.get("start_raid", "⚡ Raid starten"))
+        self.btn_raid.setStyleSheet(BTN_RAID_START)
+        
+    @Slot(str, str)
+    def _apply_raid_btn_style(self, text, style):
+        self.btn_raid.setText(text)
+        self.btn_raid.setStyleSheet(style)
 
-    def report_callback_exception(self, exc, val, tb):
-        if "invalid command name" in str(val):
-            return
-        import traceback
-        traceback.print_exception(exc, val, tb)
+    def on_language_selected(self, lang_code):
+        self.change_language(lang_code)
+        self.switch_view_animated(self.login_panel)
 
-    def open_history_window(self):
-        if hasattr(self, "history_win_ref") and self.history_win_ref and self.history_win_ref.winfo_exists():
-            self.history_win_ref.focus()
-            return
-        self.history_win_ref = RaidHistoryWindow(self, self.t)
-        
-    def show_status(self, message, message_type="info", clear_after=6000):
-        colors = {
-            "success": ("#27ae60", "#2ecc71"),
-            "error": ("#c0392b", "#e74c3c"),  
-            "info": ("gray30", "gray70")       
-        }
-        text_color = colors.get(message_type, colors["info"])
-        
-        self.label_status.configure(text=message, text_color=text_color)
-        
-        if hasattr(self, "_status_timer") and self._status_timer:
-            try:
-                self.after_cancel(self._status_timer)
-            except Exception:
-                pass
-                
-        if clear_after > 0:
-            self._status_timer = self.after(
-                clear_after, 
-                lambda: self.label_status.configure(text=self.t.get("ready"), text_color=("gray30", "gray70"))
-            )
+    @Slot()
+    def show_language_view(self):
+        self.switch_view_animated(self.language_panel)

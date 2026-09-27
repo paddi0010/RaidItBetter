@@ -286,13 +286,12 @@ class TwitchClient:
             url = f"https://api.twitch.tv/helix/raids?broadcaster_id={broadcaster_id}"
             response = requests.delete(url, headers=headers, timeout=10)
             
-            # 204 No Content bedeutet erfolgreich abgebrochen
+            print(f"DEBUG Twitch Cancel Response: {response.status_code} - {response.text}")
+            
             if response.status_code == 204:
-                return True, "🚀 Raid sucessfully aborted."
-            elif response.status_code == 404:
-                return False, "❌ No active raid to cancel."
+                return True, "🚀 Raid successfully aborted."
             else:
-                return False, f"❌ Error: {response.status_code}"
+                return False, f"❌ Twitch Error ({response.status_code}): {response.text}"
                 
         except Exception as e:
             return False, f"❌ Connection error: {e}"
@@ -314,12 +313,11 @@ class TwitchClient:
             game_name = ""
             title = ""
             profile_image = ""
+            viewer_count = 0
             last_raided = self.get_last_raided_from_db(name_lower)
 
-            # Nur wenn eingeloggt, Live-Daten von Twitch holen
             if self.access_token:
                 try:
-                    # Stream Check
                     streams_url = f"https://api.twitch.tv/helix/streams?user_login={name_lower}"
                     res = requests.get(streams_url, headers=headers, timeout=5)
                     if res.status_code == 200:
@@ -328,8 +326,8 @@ class TwitchClient:
                             is_online = True
                             game_name = data[0].get("game_name", "")
                             title = data[0].get("title", "")
+                            viewer_count = data[0].get("viewer_count", 0)
 
-                    # User Info
                     users_url = f"https://api.twitch.tv/helix/users?login={name_lower}"
                     ures = requests.get(users_url, headers=headers)
                     if ures.status_code == 200:
@@ -345,7 +343,8 @@ class TwitchClient:
                 "game_name": game_name,
                 "title": title,
                 "profile_image_url": profile_image,
-                "last_raided": last_raided
+                "last_raided": last_raided,
+                "viewer_count": viewer_count
             })
 
         return results
@@ -363,6 +362,7 @@ class TwitchClient:
             "game_name": "",
             "title": "",
             "profile_image_url": "",
+            "viewer_count": 0,
             "last_raided": None
         }
 
@@ -372,3 +372,20 @@ class TwitchClient:
             return get_last_raid_db(name)
         except:
             return None
+        
+    def get_current_user_info(self):
+        if not self.validate_and_refresh_if_needed():
+            return None
+        headers = {
+            "Client-ID": CLIENT_ID,
+            "Authorization": f"Bearer {self.access_token}"
+        }
+        try:
+            res = requests.get("https://api.twitch.tv/helix/users", headers=headers, timeout=5)
+            if res.status_code == 200:
+                data = res.json().get("data", [])
+                if data:
+                    return data[0]
+        except Exception as e:
+            print(f"Error fetching current user info: {e}")
+        return None
