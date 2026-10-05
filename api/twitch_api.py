@@ -9,6 +9,7 @@ from urllib.parse import urlparse, parse_qs
 import requests
 import keyring
 from core.config import CLIENT_ID, REDIRECT_URI, CLIENT_SECRET
+from PySide6.QtCore import QSettings
 
 SERVICE_NAME = "RaidItBetter"
 TOKEN_KEY = "twitch_access_token"
@@ -82,6 +83,9 @@ class TwitchClient:
             keyring.set_password(SERVICE_NAME, TOKEN_KEY, access_token)
             if refresh_token:
                 keyring.set_password(SERVICE_NAME, REFRESH_KEY, refresh_token)
+                
+            settings = QSettings("TwitchRaidApp", "RaidItBetter")
+            settings.setValue("twitch/oauth_token", access_token)
         except Exception as e:
             print(f"Error while saving to keyring: {e}")
 
