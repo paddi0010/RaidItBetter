@@ -119,10 +119,12 @@ class SettingsPanel(QFrame):
         self.client_id_input = create_field_with_copy("Client ID")
         self.client_id_input.setPlaceholderText("Client ID eingeben...")
         self.client_id_input.setText(default_client_id)
+        self.client_id_input.returnPressed.connect(self.save_twitch_settings)
 
         self.client_secret_input = create_field_with_copy("Client Secret", is_password=True)
         self.client_secret_input.setPlaceholderText("Client Secret eingeben...")
         self.client_secret_input.setText(default_secret)
+        self.client_id_input.returnPressed.connect(self.save_twitch_settings)
 
         lbl_oauth = QLabel("OAuth Token")
         lbl_oauth.setStyleSheet(SETTINGS_LABEL_STYLE)
