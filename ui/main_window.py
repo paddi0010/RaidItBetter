@@ -289,6 +289,7 @@ class TwitchRaidApp(QMainWindow):
     data_loaded_signal = Signal(list)
     update_raid_btn_signal = Signal(str, str)
     profile_updated_signal = Signal(object)
+    update_status_signal = Signal(bool, str)
     
     show_login_signal = Signal()
     show_main_signal = Signal()
@@ -355,7 +356,8 @@ class TwitchRaidApp(QMainWindow):
         self.main_layout.addWidget(self.panel_container)
 
         self.stack.setCurrentWidget(self.loading_panel)
-
+        
+        # --- 1. HEADER (Title, Update-Button & Profile) ---
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(0, 0, 0, 5)
         header_layout.setSpacing(10)
@@ -364,27 +366,29 @@ class TwitchRaidApp(QMainWindow):
         self.title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: white; background: transparent;")
         header_layout.addWidget(self.title_label)
         header_layout.addStretch()
-
-        tools_layout = QHBoxLayout()
-        tools_layout.setSpacing(6)
-
-        self.btn_history = self.create_header_btn("🧾", self.toggle_history, "History")
-        self.btn_settings = self.create_header_btn("⚙️", self.toggle_settings, "Settings")
-        self.btn_about = self.create_header_btn("ℹ️", self.toggle_about, "About")
-        self.btn_update = self.create_header_btn("🔄", self.on_update_click, "Updates")
-
-        tools_layout.addWidget(self.btn_history)
-        tools_layout.addWidget(self.btn_settings)
-        tools_layout.addWidget(self.btn_about)
-        tools_layout.addWidget(self.btn_update)
         
-        header_layout.addLayout(tools_layout)
-
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.VLine)
-        separator.setFrameShadow(QFrame.Shadow.Plain)
-        separator.setStyleSheet("background-color: #30363d; max-width: 1px; margin: 6px 0px;")
-        header_layout.addWidget(separator)
+        self.btn_update = QPushButton("🔄 Update")
+        self.btn_update.setFixedHeight(34)
+        self.btn_update.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_update.setToolTip("Nach Updates suchen")
+        self.btn_update.setStyleSheet("""
+            QPushButton {
+                background-color: #21262d;
+                color: #8b949e;
+                border: 1px solid #30363d;
+                border-radius: 6px;
+                padding: 0 10px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #30363d;
+                color: white;
+                border-color: #8b949e;
+            }
+        """)
+        self.btn_update.clicked.connect(self.on_update_click)
+        header_layout.addWidget(self.btn_update)
 
         self.btn_profile = QPushButton("👤")
         self.btn_profile.setFixedSize(34, 34)
@@ -399,7 +403,8 @@ class TwitchRaidApp(QMainWindow):
         header_layout.addWidget(self.btn_profile)
 
         self.content_layout.addLayout(header_layout)
-
+        
+        # --- 2. INPUT CONTAINER ---
         input_container = QFrame()
         input_container.setStyleSheet(INPUT_CONTAINER_STYLE)
         input_layout = QHBoxLayout(input_container)
@@ -419,7 +424,8 @@ class TwitchRaidApp(QMainWindow):
         self.btn_add_fav.clicked.connect(self.add_favorite)
         input_layout.addWidget(self.btn_add_fav)
         self.content_layout.addWidget(input_container)
-
+        
+        # --- 3. FILTER & SORT ---
         filter_layout = QHBoxLayout()
         
         self.combo_sort = QComboBox()
@@ -441,12 +447,14 @@ class TwitchRaidApp(QMainWindow):
         filter_layout.addWidget(self.checkbox_online)
         
         self.content_layout.addLayout(filter_layout)
-
+        
+        # --- 4. FAVORITES LIST ---
         self.list_favorites = FavoritesListWidget()
         self.list_favorites.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
         self.list_favorites.setStyleSheet(SCROLL_AREA_STYLE)
         self.content_layout.addWidget(self.list_favorites)
         
+        # --- 5. RAID BUTTON ---
         self.btn_raid = QPushButton(self.t.get("start_raid", "⚡ Raid starten"))
         self.btn_raid.setFixedHeight(40)
         self.btn_raid.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -454,13 +462,29 @@ class TwitchRaidApp(QMainWindow):
         self.btn_raid.clicked.connect(self.on_raid_click)
         self.content_layout.addWidget(self.btn_raid)
         
+        # --- 6. Bottom Bar (Status left, Tools right) ---
+        bottom_bar_layout = QHBoxLayout()
+        bottom_bar_layout.setContentsMargins(0, 5, 0, 0)
+        bottom_bar_layout.setSpacing(6)
+        
         self.label_status = QLabel(self.t.get("ready", "Bereit"))
         self.label_status.setStyleSheet(STATUSBAR_STYLE)
-        self.content_layout.addWidget(self.label_status)
-
+        bottom_bar_layout.addWidget(self.label_status, stretch=1)
+        
+        self.btn_history = self.create_header_btn("🧾", self.toggle_history, "History")
+        self.btn_settings = self.create_header_btn("⚙️", self.toggle_settings, "Settings")
+        self.btn_about = self.create_header_btn("ℹ️", self.toggle_about, "About")
+                
+        bottom_bar_layout.addWidget(self.btn_history)
+        bottom_bar_layout.addWidget(self.btn_settings)
+        bottom_bar_layout.addWidget(self.btn_about)
+        
+        self.content_layout.addLayout(bottom_bar_layout)
+        
         self.data_loaded_signal.connect(self._render_favorites_ui)
         self.update_raid_btn_signal.connect(self._apply_raid_btn_style)
         self.profile_updated_signal.connect(self._apply_profile_image)
+        self.update_status_signal.connect(self.apply_update_button_style)
         
         self.show_login_signal.connect(self.show_login_view)
         self.show_main_signal.connect(self.show_main_view)
@@ -569,11 +593,59 @@ class TwitchRaidApp(QMainWindow):
 
     def check_app_updates_background(self):
         while True:
-            has_update, self.latest_release_url = check_update_status()
-            color = "#ff851b" if has_update else ("#28a745" if self.latest_release_url else "#21262d")
-            QMetaObject.invokeMethod(self.btn_update, "setStyleSheet", Qt.ConnectionType.QueuedConnection, 
-                                      Q_ARG(str, f"QPushButton {{ background-color: {color}; color: white; border-radius: 6px; font-size: 14px; }}"))
-            time.sleep(1800)
+            has_update, url = check_update_status()
+            
+            # --- ZUM TESTEN (Erzwungen auf True): ---
+            # has_update = True
+            # url = "https://github.com"
+            # ----------------------------------------
+            
+            self.update_status_signal.emit(has_update, url)
+            break
+            
+        time.sleep(1800)
+
+    @Slot(bool, str)
+    def apply_update_button_style(self, has_update, url):
+        self.latest_release_url = url
+        if has_update:
+            style = """
+                QPushButton {
+                    background-color: #9146FF !important;
+                    color: white !important;
+                    border: none !important;
+                    border-radius: 6px;
+                    padding: 0 10px;
+                    font-size: 12px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #772ce8 !important;
+                }
+            """
+            self.btn_update.setStyleSheet(style)
+            self.btn_update.setText("🚀 Update verfügbar")
+        else:
+            default_style = """
+                QPushButton {
+                    background-color: #21262d !important;
+                    color: #8b949e !important;
+                    border: 1px solid #30363d !important;
+                    border-radius: 6px;
+                    padding: 0 10px;
+                    font-size: 12px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #30363d !important;
+                    color: white !important;
+                    border-color: #8b949e !important;
+                }
+            """
+            self.btn_update.setStyleSheet(default_style)
+            self.btn_update.setText("🔄 Update")
+            
+        self.btn_update.update()
 
     def validate_token_on_startup(self):
         def background_validate():
@@ -586,15 +658,11 @@ class TwitchRaidApp(QMainWindow):
                     print(f"[ERROR] Fehler beim Vorab-Laden: {e}")
             is_valid = self.twitch.validate_and_refresh_if_needed()
             if is_valid:
+                if self.last_streamer_data:
+                    self.data_loaded_signal.emit(self.last_streamer_data)
                 self.show_main_signal.emit()
             else:
-                if is_valid:
-                # Daten direkt an UI übergeben, damit sie sofort da sind
-                    if self.last_streamer_data:
-                        self.data_loaded_signal.emit(self.last_streamer_data)
-                    self.show_main_signal.emit()
-                else:
-                    QMetaObject.invokeMethod(self, "show_language_view", Qt.ConnectionType.QueuedConnection)
+                QMetaObject.invokeMethod(self, "show_language_view", Qt.ConnectionType.QueuedConnection)
         
         if not self.twitch.access_token:
             QMetaObject.invokeMethod(self, "show_language_view", Qt.ConnectionType.QueuedConnection)
@@ -870,23 +938,13 @@ class TwitchRaidApp(QMainWindow):
     def on_login_success(self, event=None):
         self.show_main_signal.emit()
         msg = self.t.get("login_success", "Erfolgreich angemeldet")
-        QMetaObject.invokeMethod(
-            self.label_status, 
-            "setText", 
-            Qt.ConnectionType.QueuedConnection, 
-            Q_ARG(str, msg)
-        )
+        QTimer.singleShot(0, lambda: self.label_status.setText(msg))
 
     def perform_logout(self):
         self.twitch.logout()
         self.show_login_signal.emit()
         msg = self.t.get("logged_out", "Abgemeldet")
-        QMetaObject.invokeMethod(
-            self.label_status, 
-            "setText", 
-            Qt.ConnectionType.QueuedConnection, 
-            Q_ARG(str, msg)
-        )
+        QTimer.singleShot(0, lambda: self.label_status.setText(msg))
 
     def on_raid_click(self):
         streamer_name = self.entry_streamer.text().strip().lower()
@@ -903,7 +961,7 @@ class TwitchRaidApp(QMainWindow):
             def run():
                 success, message = self.twitch.execute_raid(streamer_name)
                 
-                QMetaObject.invokeMethod(self.label_status, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, message))
+                QTimer.singleShot(0, lambda: self.label_status.setText(message))
                 
                 if success:
                     self.is_raiding = True
@@ -912,21 +970,19 @@ class TwitchRaidApp(QMainWindow):
                     self.update_raid_btn_signal.emit("Raid abbrechen", BTN_RAID_CANCEL)
                     
                     add_raid_history_db(streamer_name, viewer_count=0, status="Success")
-                    QMetaObject.invokeMethod(self, "refresh_favorites_list", Qt.ConnectionType.QueuedConnection)
+                    QTimer.singleShot(0, self.refresh_favorites_list)
                 else:
-                    QMetaObject.invokeMethod(self, "reset_raid_button_state", Qt.ConnectionType.QueuedConnection)
-
+                    QTimer.singleShot(0, self.reset_raid_button_state)
             threading.Thread(target=run, daemon=True).start()
 
         else:
             self.raid_cancelled = True
-            self.label_status.setText("Breche Raid ab...")
+            QTimer.singleShot(0, lambda: self.label_status.setText("Breche Raid ab..."))
 
             def cancel_run():
                 success, message = self.twitch.cancel_raid()
-                QMetaObject.invokeMethod(self.label_status, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, message))
-                QMetaObject.invokeMethod(self, "reset_raid_button_state", Qt.ConnectionType.QueuedConnection)
-
+                QTimer.singleShot(0, lambda: self.label_status.setText(message))
+                QTimer.singleShot(0, self.reset_raid_button_state)
             threading.Thread(target=cancel_run, daemon=True).start()
             
     def on_sort_changed(self):

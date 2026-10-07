@@ -1,6 +1,6 @@
 import requests
 import webbrowser
-from tkinter import messagebox
+from PySide6.QtWidgets import QMessageBox
 from core.settings import APP_VERSION
 
 GITHUB_REPO = "paddi0010/RaidItBetter"
@@ -33,11 +33,29 @@ def check_for_updates(parent_window=None, silent=False):
         msg = (f"A new version is available!\n"
                f"Your current version: {CURRENT_VERSION}\n\n"
                "Would you like to open the release page in your browser to download the update?")
-        if messagebox.askyesno("Update available", msg, parent=parent_window):
-            webbrowser.open(release_url)
+        
+        reply = QMessageBox.question(
+            parent_window, 
+            "Update available", 
+            msg, 
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+            QMessageBox.StandardButton.Yes
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            if release_url:
+                webbrowser.open(release_url)
+                
     elif release_url:
         if not silent:
-            messagebox.showinfo("No Update", "You are already using the latest version.", parent=parent_window)
+            QMessageBox.information(
+                parent_window, 
+                "No Update", 
+                "You are already using the latest version."
+            )
     else:
         if not silent:
-            messagebox.showwarning("Notice", "Could not retrieve update information from GitHub (possibly no release exists).", parent=parent_window)
+            QMessageBox.warning(
+                parent_window, 
+                "Notice", 
+                "Could not retrieve update information from GitHub (possibly no release exists)."
+            )
